@@ -65,7 +65,23 @@ def sinkhorn_loss(x,y,Cost,epsilon=0.01,niter=5000):
 
 
     return sloss
-        
+
+
+
+def sinkhorn_divergance(x,y,Cost,epsilon=0.01,niter=5000):
+    """
+    Returns the sinkhorn divergance for two poinclouds x and y 
+    (can generalise both this function and the above to non-uniform measures)
+    """   
+    sxy=sinkhorn_loss(x,y,Cost,epsilon=epsilon,niter=niter)
+    print(sxy)
+    syy=sinkhorn_loss(y,y,Cost,epsilon=epsilon,niter=niter)
+    print(syy)
+    sxx=sinkhorn_loss(x,x,Cost,epsilon=epsilon,niter=niter) 
+    print(sxx)    
+
+    return sxy-0.5*(sxx+syy)
+
 
 
 
@@ -74,7 +90,7 @@ if __name__=="__main__":
 
     #run a simple experiment to check it is working
 
-    from utils import euclidean_dist
+    from utils import *
 
     N = [300,200]
     d = 2
@@ -85,7 +101,11 @@ if __name__=="__main__":
     y = np.vstack((np.cos(theta)*r,np.sin(theta)*r))
     plotp = lambda x,col: plt.scatter(x[0,:], x[1,:], s=200, edgecolors="k", c=col, linewidths=2)
 
-    x=x.T
-    y=y.T
+    x=tf.constant(x.T)
+    y=tf.constant(y.T)
     
-    print(sinkhorn_loss(x,y,euclidean_dist,niter=3000))
+    with tf.GradientTape() as t:
+        t.watch(x)
+        s=sinkhorn_loss(x,y,euclidean_sqdist,niter=3000)
+        print(s)
+        print(t.gradient(s,x))
