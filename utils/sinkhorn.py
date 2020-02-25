@@ -8,10 +8,12 @@ import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
+from utils import * 
+from utils.utils import *
 np.random.seed(123)
 
 
-def sinkhorn_loss(x,y,Cost,epsilon=0.01,niter=5000):
+def sinkhorn_loss(x,y,Cost,epsilon=0.01,niter=10,err=1e-1):
     """
     Performs sinkhorn algorithm on two measures using the log-exp
     trick for numerical stability, returning the sinkhorn loss
@@ -50,13 +52,22 @@ def sinkhorn_loss(x,y,Cost,epsilon=0.01,niter=5000):
 
     #initialise u,v
     u,v= (0.*µ1 ,0.*µ2)
+    u1=0.*µ1
+    norm=2*err
 
+
+    def step(u,v,u1,norm):
     #perform the fixed point iteration:
-    for i in tqdm(range(niter)):
-
+        u1=u
         u=epsilon * (tf.math.log(µ1) - tf.squeeze(lsexp(M(u,v))))+u
         v=epsilon * (tf.math.log(µ2) - tf.squeeze(lsexp(tf.transpose(M(u,v)))))+v
+        norm=tf.reduce_sum(tf.abs(u-u1))
+        return u,v,u1,norm
 
+    def condition(u,v,u1,norm):
+        return norm<err
+
+    u,v,_,_=tf.while_loop(condition,step,[u,v,u1,norm],maximum_iterations=niter)
 
     #calculate optimal transport plan
     P=tf.math.exp(M(u,v))
@@ -68,22 +79,22 @@ def sinkhorn_loss(x,y,Cost,epsilon=0.01,niter=5000):
 
 
 
-def sinkhorn_divergance(x,y,Cost,epsilon=0.01,niter=5000):
+def sinkhorn_divergance(x,y,Cost,epsilon=0.01,niter=10):
     """
     Returns the sinkhorn divergance for two poinclouds x and y 
     (can generalise both this function and the above to non-uniform measures)
     """   
     sxy=sinkhorn_loss(x,y,Cost,epsilon=epsilon,niter=niter)
-    print(sxy)
     syy=sinkhorn_loss(y,y,Cost,epsilon=epsilon,niter=niter)
-    print(syy)
     sxx=sinkhorn_loss(x,x,Cost,epsilon=epsilon,niter=niter) 
-    print(sxx)    
 
     return sxy-0.5*(sxx+syy)
 
 
 
+def sinkhorn_sq_batch(X,epsilon=0.01,niter=10):
+    X1,X2=tf.split(X,2)
+    return sinkhorn_divergance(X1,X2,euclidean_sqdist,epsilon=epsilon,niter=niter)
 
 
 if __name__=="__main__":
