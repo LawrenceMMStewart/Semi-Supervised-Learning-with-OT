@@ -4,6 +4,8 @@ from sklearn import datasets
 from sklearn.utils import shuffle
 from utils.utils import *
 from utils.sinkhorn import *
+import tensorflow_probability as tfp
+from tqdm import tqdm
 
 np.random.seed(123)
 
@@ -22,39 +24,45 @@ noisy_scurve,_ = datasets.make_s_curve(n_samples=n_samples)
 # plt.show()
 
 #create the observable dataset and mask:
-data,mask=MCAR_Mask(noisy_circles,0.1)
+data,mask=MCAR_Mask(noisy_moons,0.1)
+print(data,mask)
 
 #batchsize
 m=100
 #shuffle data set and partition into subsets of size 2m 
-data=shuffle(data)
+data,mask=shuffle(data,mask)
 k=int(n_samples/m)
 
-#replace nans by means + noise 
-X=Initialise_Nans(data)
-partitions=np.split(X,k)
+print(data,mask)
 
-#for each batch
-for p in partitions:
-	#seperate into Xk and Xl 
-	with tf.GradientTape() as t:
+# #replace nans by means + noise 
+# X=Initialise_Nans(data)
+# #split the data into partitions
+# partitions=np.split(X,k)
 
-		Xlk=tf.constant(p)
-		t.watch(Xlk)
+# #optimiser
+# optimizer=tf.keras.optimizers.RMSprop()
 
-		#run sinkhorn
-		Xk,Xl=tf.split(Xlk,2)
-		l=sinkhorn_divergance(Xk,Xl,euclidean_sqdist)
-		print("sinkhorn divergance is",l)
-		print("computing gradient")
-		grad_Xlk=t.gradient(l,Xlk)
-		print(grad_Xlk)
-		break
+# imputed_list=[]
 
+# #for each batch
+# for i in tqdm(range(len(partitions)),desc="Imputation of folds"):
+# 	#seperate into Xk and Xl 
+# 	Xlk=tf.Variable(partitions[i])
+# 	loss_fun = lambda: sinkhorn_sq_batch(Xlk,niter=50)
+# 	losses=tfp.math.minimize(loss_fun,optimizer=optimizer,num_steps=3000)
+# 	imputed_list.append(Xlk.numpy())
 
-
-
+# predicted_data=np.concatenate(imputed_list)
+# imputed_data = data*mask+predicted_data*(1-mask)
 
 
-
-
+# plt.figure()
+# plt.subplots(121)
+# plt.scatter(noisy_circles[:,0],noisy_circles[:,1])
+# plt.title("Ground truth")
+# plt.subplots(122)
+# plt.scatter(data[:,0],data[:,1],alpha=0.2)
+# plt.scatter(imputed_data[:,0],imputed_data[:,1])
+# plt.title("imputation")
+# plt.show()
