@@ -9,7 +9,6 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from utils import * 
-from utils.utils import *
 np.random.seed(123)
 
 
