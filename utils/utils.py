@@ -81,9 +81,27 @@ def euclidean_sqdist(X,Y):
     return tf.cast(X2+Y2-2.*X@tf.transpose(Y),tf.float32)
 
 
+# @tf.function(input_signature=[tf.TensorSpec(tf.float32,tf.int32)]) 
+# def tensor_split(X,K):
+#     """
+#     Splits a tensor X into k tensors along axis=0 as best as possible
+
+#     Parameters
+#     -----------
+#     X : float32 tensor (n x d) 
+#     k : tensor
 
 
-def MCAR_Mask(data,p):
+#     Output
+#     ----------
+#     L : List of tensors
+
+#     """
+#     return tf.numpy_function(np.array_split,[X,K],Tout=tf.float32)
+
+
+#please fix bug here
+def MCAR_Mask(data,p,del_empty=False):
     """
     Randomly masks values of data with probability p
     i.e. Missing Completely At Random
@@ -110,11 +128,15 @@ def MCAR_Mask(data,p):
     nan_mask[nan_mask==0]=np.nan
     obs_data=data*nan_mask
 
-    #deal with the case where a datapoint is empty:
-    for i in range(n):
-        if (obs_data[i]==np.nan).all():
-            obs_data=np.delete(obs_data,(i),axis=0)
-            mask=np.delete(mask,(i),axis=0)
+    if del_empty:
+        #deal with the case where a datapoint is empty:
+        to_delete=[]
+        for i in range(n):
+            if np.isnan(obs_data[i]).all():
+                to_delete.append(i)
+        #remove empty datapoints
+        obs_data=np.delete(obs_data,to_delete,axis=0)
+        mask=np.delete(mask,to_delete,axis=0)
 
     return obs_data,mask
 
@@ -146,6 +168,68 @@ def Initialise_Nans(data,η=0.1):
 
     return filled
 
+
+
+
+def percentage_missing(mask):
+    """
+    Returns the percentage of the data that has missing values
+
+    Parameters
+    ----------
+    mask : np.array (n x d) {0,1}
+    
+    Output
+    ----------
+    percentage: float
+
+    """
+
+    labels=[1 if 0 in mask[i] else 0 for i in range(len(mask))]
+    return np.mean(labels)
+
+def percentage_empty(mask):
+    """
+    Returns the percentage of the data that is empty
+    i.e. each point of the data is missing
+
+    Parameters
+    ----------
+    mask : np.array (n x d) {0,1}
+    
+    Output
+    ----------
+    percentage: float
+
+    """
+    labels=[1 if (mask[i]==0).all() else 0 for i in range(len(mask))]
+    return np.mean(labels)
+
+def generate_labels(mask):
+    """
+    Returns two lists, the first consisting of the indicies
+    of the data points who are missing values, and the second
+    the indices of data points without missing values
+
+    Parameters
+    ----------
+    mask : np.array (n x d) {0,1}
+
+    Output
+    ----------
+    missing_ids : int list
+    complete_ids : int list
+
+    """
+    missing_ids=[]
+    complete_ids=[]
+    for i in range(len(mask)):
+        if 0 in mask[i]:
+            missing_ids.append(i)
+        else:
+            complete_ids.append(i)
+
+    return missing_ids,complete_ids
 
 
 

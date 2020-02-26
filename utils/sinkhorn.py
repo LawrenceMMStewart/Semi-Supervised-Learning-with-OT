@@ -92,8 +92,17 @@ def sinkhorn_divergance(x,y,Cost,epsilon=0.01,niter=10):
 
 
 
+# @tf.function
+# def split_tensor(X,K):
+#     return tf.numpy_function(np.array_split,[X,K],Tout=tf.float32)
+
+
+
+
 def sinkhorn_sq_batch(X,epsilon=0.01,niter=10):
-    X1,X2=tf.split(X,2)
+    #split batch in half
+    X1,X2 = tf.split(X,2)
+    #caluclate sinkhorn divergance
     return sinkhorn_divergance(X1,X2,euclidean_sqdist,epsilon=epsilon,niter=niter)
 
 
