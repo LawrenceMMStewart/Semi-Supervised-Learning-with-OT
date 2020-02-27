@@ -7,7 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt 
 from sklearn import datasets
 from sklearn.utils import shuffle
-from test_cases.utils import *
+from utils.utils import *
+from utils.sinkhorn import *
 import tensorflow_probability as tfp
 from tqdm import tqdm
 
@@ -62,7 +63,7 @@ imputed_list=[]
 for i in tqdm(range(len(partitions)),desc="Imputation of folds"):
 	#seperate into Xk and Xl 
 	Xlk=tf.Variable(partitions[i])
-	loss_fun = lambda: sinkhorn_sq_batch(Xlk,niter=30)
+	loss_fun = lambda: sinkhorn_sq_batch(Xlk,Cost=euclidean_sqdist,niter=30,epsilon=10)
 
 	losses=tfp.math.minimize(loss_fun,optimizer=optimizer,num_steps=2500)
 	imputed_list.append(Xlk.numpy())

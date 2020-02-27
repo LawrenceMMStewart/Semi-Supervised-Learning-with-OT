@@ -13,7 +13,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt 
 from sklearn import datasets
 from sklearn.utils import shuffle
-from utils.sinkhorn import *
+from utils.sinkhorn import *    # neither of these work -- need to cc up one to run it 
 from utils.utils import *
 import tensorflow_probability as tfp
 from tqdm import tqdm
@@ -34,8 +34,9 @@ optimizer=tf.keras.optimizers.Adam()
 loss_fun = lambda : sinkhorn_divergance(x,Y,euclidean_sqdist,epsilon=1000,niter=1000)
 losses=tfp.math.minimize(loss_fun,optimizer=optimizer,num_steps=10000)
 
-print(losses)
-
+print("S(X,Y) = ",sinkhorn_divergance(X,Y,euclidean_sqdist,epsilon=1000,niter=1000))
+print("S(X_new,Y) = ",sinkhorn_divergance(x,Y,euclidean_sqdist,epsilon=1000,niter=1000))
+print("S(Y,Y) = ",sinkhorn_divergance(Y,Y,euclidean_sqdist,epsilon=1000,niter=1000))
 
 plt.scatter(X[:,0],X[:,1],label="X",alpha=0.8,marker='x')
 plt.scatter(Y[:,0],Y[:,1],label="Y",alpha=0.8)

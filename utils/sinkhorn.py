@@ -8,7 +8,7 @@ import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import * 
+from utils import *
 np.random.seed(123)
 
 
@@ -96,20 +96,19 @@ def sinkhorn_divergance(x,y,Cost,epsilon=0.01,niter=10):
 #     return tf.numpy_function(np.array_split,[X,K],Tout=tf.float32)
 
 
-
-
-def sinkhorn_sq_batch(X,epsilon=0.01,niter=10):
+def sinkhorn_sq_batch(X,Cost,epsilon=0.01,niter=10):
     #split batch in half
     X1,X2 = tf.split(X,2)
     #caluclate sinkhorn divergance
-    return sinkhorn_divergance(X1,X2,euclidean_sqdist,epsilon=epsilon,niter=niter)
+    return sinkhorn_divergance(X1,X2,Cost=Cost,epsilon=epsilon,niter=niter)
+
+
 
 
 if __name__=="__main__":
 
     #run a simple experiment to check it is working
 
-    from utils import *
 
     N = [300,200]
     d = 2
