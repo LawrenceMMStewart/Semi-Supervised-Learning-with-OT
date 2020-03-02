@@ -1,6 +1,7 @@
 """
 Sinkhorn Algorithm for regularised optimal transport
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
+Functions taken from Claici et al. sclaici@csail.mit.edu
 Liscence: Mit License
 """
 
