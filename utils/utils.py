@@ -141,16 +141,16 @@ def MCAR_Mask(data,p,del_empty=False):
     return obs_data,mask
 
 
-def Initialise_Nans(data,η=0.1):
+def Initialise_Nans(data,eta=0.1):
     """
     Sets Nans in data matrix to the sample mean for that dimension
-    with some added random noise from a normal distribution
+    with some added random noise from a normal N(0,eta)
 
     Parameters
     ----------
 
     data : array (n x d) 
-    η : float
+    eta : float
 
     Output
     ---------
@@ -163,7 +163,7 @@ def Initialise_Nans(data,η=0.1):
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             if np.isnan(filled[i,j]):
-                filled[i,j]=means[j]+np.random.normal(0,η)
+                filled[i,j]=means[j]+np.random.normal(0,eta)
 
 
     return filled

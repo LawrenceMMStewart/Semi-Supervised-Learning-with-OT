@@ -65,7 +65,7 @@ loss_fun = lambda: sinkhorn_sq_batch(Xlk,p=2,niter=10,div=True,epsilon=0.1) #old
 
 
 #training
-epochs=10000
+epochs=1000
 
 
 for e in tqdm(range(epochs),desc="RMSProp Maxits"):
