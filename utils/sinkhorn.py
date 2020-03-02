@@ -9,121 +9,106 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from utils import *
-np.random.seed(123)
 
 
-def sinkhorn_loss(x,y,Cost,epsilon=0.01,niter=10,err=1e-1):
+@tf.function 
+def cost_mat(X,Y,n,m,p=2):
     """
-    Performs sinkhorn algorithm on two measures using the log-exp
-    trick for numerical stability, returning the sinkhorn loss
-    
+    Returns table of pointwise Eucildean Distances
+    C_ij=|| x_i - y_j ||^2
+
     Parameters
     ----------
-    x : tf.tensor n x d 
-    y : tf.tensor m x d 
-    Cost : function to evaluate pairwise cost
+    X : (tensor) (n x p) 
+    Y : (tensor) (m x p)
+    n : int
+    m : int 
+    p : int
 
     Output
-    --------
-
-    Sinkhorn Loss: tf.tensor 
-
+    ---------
+    C : (tensor) (n x m) 
     """
-    #Create the cost matrix
-    C=Cost(x,y)
+    XX = tf.reduce_sum(tf.multiply(X,X),axis=1)
+    YY = tf.reduce_sum(tf.multiply(Y,Y),axis=1)
+    C1 = tf.transpose(tf.reshape(tf.tile(XX,[m]),[m,n]))
+    C2 = tf.reshape(tf.tile(YY,[n]),[n,m])
+    C3 = tf.transpose(tf.linalg.matmul(Y,tf.transpose(X)))
+    C = C1 + C2 - 2*C3;
+    if p == 2:
+        return C
+    else:
+        return tf.sqrt(C+10**(-3))**p
 
-    n=x.shape[0]
-    m=y.shape[0]
-
-    #logsum lambda function:
-    lsexp = lambda x : tf.math.reduce_logsumexp(x,axis=1,keepdims=True)
-
-    def M(u,v):
-        """
-        Creates the stable sinkhorn matrix M_ij=( - C_ij + u_i + v_j) / e 
-        """ 
-        return (-C + tf.expand_dims(u,1) + tf.expand_dims(v,0) )/ epsilon
-    
-    
-    #define the uniform weightings
-    µ1=tf.ones(n,dtype=tf.float32)/n
-    µ2=tf.ones(m,dtype=tf.float32)/m
-
-    #initialise u,v
-    u,v= (0.*µ1 ,0.*µ2)
-    u1=0.*µ1
-    norm=2*err
-
-
-    def step(u,v,u1,norm):
-    #perform the fixed point iteration:
-        u1=u
-        u=epsilon * (tf.math.log(µ1) - tf.squeeze(lsexp(M(u,v))))+u
-        v=epsilon * (tf.math.log(µ2) - tf.squeeze(lsexp(tf.transpose(M(u,v)))))+v
-        norm=tf.reduce_sum(tf.abs(u-u1))
-        return u,v,u1,norm
-
-    def condition(u,v,u1,norm):
-        return norm<err
-
-    u,v,_,_=tf.while_loop(condition,step,[u,v,u1,norm],maximum_iterations=niter)
-
-    #calculate optimal transport plan
-    P=tf.math.exp(M(u,v))
-    #return sinkhorn loss
-    sloss=tf.reduce_sum(P*C)
-
-
-    return sloss
-
-
-
-def sinkhorn_divergance(x,y,Cost,epsilon=0.01,niter=10):
+@tf.function 
+def K_tild(u,v,n,m,C,epsilon=0.1):
     """
-    Returns the sinkhorn divergance for two poinclouds x and y 
-    (can generalise both this function and the above to non-uniform measures)
-    """   
-    sxy=sinkhorn_loss(x,y,Cost,epsilon=epsilon,niter=niter)
-    syy=sinkhorn_loss(y,y,Cost,epsilon=epsilon,niter=niter)
-    sxx=sinkhorn_loss(x,x,Cost,epsilon=epsilon,niter=niter) 
+    Calculates the matrix exp ( C_ij -ui- vj ) for sinkhorn step
+    """
+    C_tild = C - tf.transpose(tf.reshape(tf.tile(u[:,0],[m]),[m,n])) - tf.reshape(tf.tile(v[:,0],[n]),[n,m])
+    k_tild = tf.exp(-C_tild/epsilon)
+    return k_tild
 
-    return sxy-0.5*(sxx+syy)
+@tf.function 
+def sinkhorn_step_log(u,v,n,m,C,epsilon=0.1):
+    """
+    Calculates one step of sinkhorn in logsumexp manner
+    """
+    mu = tf.cast(1/n, tf.float32)
+    nu = tf.cast(1/m, tf.float32)
+    Ku = tf.reshape( tf.reduce_sum(K_tild(u,v,n,m,C,epsilon),axis = 1) ,[n,1] )
+    u = epsilon*(tf.math.log(mu) - tf.math.log(Ku +10**(-6))) + u 
+    Kv = tf.reshape( tf.reduce_sum(K_tild(u,v,n,m,C,epsilon),axis = 0), [m,1] )
+    v = epsilon*(tf.math.log(nu) - tf.math.log(Kv +10**(-6))) + v 
+    return u,v
 
-
-
-# @tf.function
-# def split_tensor(X,K):
-#     return tf.numpy_function(np.array_split,[X,K],Tout=tf.float32)
-
-
-def sinkhorn_sq_batch(X,Cost,epsilon=0.01,niter=10):
-    #split batch in half
-    X1,X2 = tf.split(X,2)
-    #caluclate sinkhorn divergance
-    return sinkhorn_divergance(X1,X2,Cost=Cost,epsilon=epsilon,niter=niter)
-
-
-
-
-if __name__=="__main__":
-
-    #run a simple experiment to check it is working
-
-
-    N = [300,200]
-    d = 2
-    x = np.random.rand(2,N[0])-.5
-
-    theta = 2*np.pi*np.random.rand(1,N[1])
-    r = .8 + .2*np.random.rand(1,N[1])
-    y = np.vstack((np.cos(theta)*r,np.sin(theta)*r))
-    plotp = lambda x,col: plt.scatter(x[0,:], x[1,:], s=200, edgecolors="k", c=col, linewidths=2)
-
-    x=tf.constant(x.T)
-    y=tf.constant(y.T)
+@tf.function 
+def sinkhorn_cost_log(n,m,C,niter,epsilon=0.1):
+    """
+    Calculates the log sinkhorn cost. 
+    """
     
-    with tf.GradientTape() as t:
-        t.watch(x)
-        s=sinkhorn_loss(x,y,euclidean_sqdist,niter=3000)
-        print(s)
-        print(t.gradient(s,x))
+    u = tf.zeros([n,1])
+    v = tf.zeros([m,1])
+    for i in range(niter):
+        u,v = sinkhorn_step_log(u,v,n,m,C,epsilon)
+    gamma_log = K_tild(u,v,n,m,C,epsilon)
+    final_cost_log = tf.reduce_sum(gamma_log*C)
+    return final_cost_log
+
+def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.1):
+    """
+    Returns the sinkhorn loss or divergance calculated 
+    using the logsumexp approach
+
+    Parameters
+    ----------
+    n,m,p : int
+    X,Y : tensor (n x p), (m x p)
+    div : Boolean
+    niter : int
+    epsilon: float
+
+    Output
+    ---------
+    sinkhorn_costXY : tensor (1)
+    """
+    CXY = cost_mat(X,Y,n,m,p)
+    sinkhorn_costXY = sinkhorn_cost_log(n,m,CXY,niter,epsilon)
+    if div:
+        CXX = cost_mat(X,X,n,n,p)
+        CYY = cost_mat(Y,Y,m,m,p)
+        sinkhorn_costXX = sinkhorn_cost_log(n,n,CXX,niter,epsilon)
+        sinkhorn_costYY = sinkhorn_cost_log(m,m,CYY,niter,epsilon)
+        return sinkhorn_costXY - 1/2 *(sinkhorn_costXX+sinkhorn_costYY)
+    else:
+        return sinkhorn_costXY
+
+# def sinkhorn_sq_batch(X,p=2,niter=10,div=False,epsilon=0.1):
+#     #split batch in half
+#     X1,X2 = tf.split(X,2)
+#     n=X1.shape[0]
+#     m=X2.shape[1]
+#     #caluclate sinkhorn divergance
+#     return sinkhorn_div(n,m,X1,X2,niter,p,div,epsilon)
+

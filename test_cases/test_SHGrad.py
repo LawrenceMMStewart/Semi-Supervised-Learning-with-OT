@@ -17,26 +17,39 @@ from utils.sinkhorn import *    # neither of these work -- need to cc up one to 
 from utils.utils import *
 import tensorflow_probability as tfp
 from tqdm import tqdm
-
+np.random.seed(123)
 
 #initialse two point clouds on the unit grid 
 
 #uniform taking value in 0 -> 0.4
-X = np.random.uniform(0,0.4,[30,2])
-Y = np.random.uniform(0.6,1,[30,2])
+X = np.random.uniform(0,0.4,[50,2]).astype(np.float32)
+Y = np.random.uniform(0.6,1,[50,2]).astype(np.float32)
 
 
 #minimise the sinkhorn distance with respect to X 
 x=tf.Variable(X)
 
-optimizer=tf.keras.optimizers.Adam()
+optimizer=tf.keras.optimizers.RMSprop()
 
-loss_fun = lambda : sinkhorn_divergance(x,Y,euclidean_sqdist,epsilon=1000,niter=1000)
-losses=tfp.math.minimize(loss_fun,optimizer=optimizer,num_steps=10000)
+# loss_fun = lambda : sinkhorn_divergance(x,Y,euclidean_sqdist,epsilon=0.1,niter=10)
 
-print("S(X,Y) = ",sinkhorn_divergance(X,Y,euclidean_sqdist,epsilon=1000,niter=1000))
-print("S(X_new,Y) = ",sinkhorn_divergance(x,Y,euclidean_sqdist,epsilon=1000,niter=1000))
-print("S(Y,Y) = ",sinkhorn_divergance(Y,Y,euclidean_sqdist,epsilon=1000,niter=1000))
+n=X.shape[0]
+m=Y.shape[0]
+p=2
+niter=10
+div=True
+epsilon=0.01
+
+
+loss_fun =  lambda : sinkhorn(n,m,x,Y,p,div,niter=niter,epsilon=epsilon)
+
+losses=tfp.math.minimize(loss_fun,optimizer=optimizer,num_steps=5000,trainable_variables=[x])
+
+print("S(X,Y) = ",sinkhorn(n,m,X,Y,p,div,niter=niter,epsilon=epsilon))
+print("S(X_new,Y) = ",sinkhorn(n,m,x,Y,p,div,niter=niter,epsilon=epsilon))
+print("S(Y,Y) = ",sinkhorn(n,m,Y,Y,p,div,niter=niter,epsilon=epsilon))
+
+
 
 plt.scatter(X[:,0],X[:,1],label="X",alpha=0.8,marker='x')
 plt.scatter(Y[:,0],Y[:,1],label="Y",alpha=0.8)
