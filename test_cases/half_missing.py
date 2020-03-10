@@ -26,36 +26,24 @@ noisy_scurve,_ = datasets.make_s_curve(n_samples=n_samples)
 #make 3d data 2d
 noisy_scurve=np.delete(noisy_scurve,1,1)
 
+#choose a dataset
+choice = noisy_moons
 
-def missing_2nd_half(in_data):
-    n=len(in_data)
-    assert n%2 ==0
+#concatenate dataset 2x to see if we can retrieve missing values
+data=np.concatenate((choice,choice)).astype(np.float32)
 
-    obs_data=in_data.copy()
-    mask=np.ones(obs_data.shape)
-
-    #randomly replace on of the two values for each data point
-    #in the second half of the dataset
-    for i in range(n//2,n):
-        ind=np.random.binomial(1,0.5)
-        mask[i,ind]=0
-        obs_data[i,ind]=np.nan
-
-    return obs_data,mask
-
-dataset=np.concatenate((noisy_scurve,noisy_scurve)).astype(np.float32)
+#initialise the class
+mframe = MissingData(data)
+obs_data, mask = mframe.missing_secondhalf2D()
 
 
-data,mask = missing_2nd_half(dataset)
-m=700
-
-print("percentage of datapoints with missing values ",percentage_missing(mask),"%")
-print("percentage of empty points ",percentage_empty(mask),"%")
-mids,cids=generate_labels(mask)
+print("percentage of datapoints with missing values ",mframe.percentage_missing,"%")
+print("percentage of empty points ",mframe.percentage_empty(),"%")
+mids,cids = mframe.Generate_Labels()
 
 
 #replace nans by means + noise 
-X=Initialise_Nans(data,eta=0.2)
+X=mframe.Initialise_Nans(eta=0.1)
 
 opt=tf.compat.v1.train.RMSPropOptimizer(learning_rate=.01)
 # opt=tf.compat.v1.train.GradientDescentOptimizer(learning_rate=.01)
@@ -65,7 +53,7 @@ loss_fun = lambda: sinkhorn_sq_batch(Xlk,p=2,niter=10,div=True,epsilon=0.1) #old
 
 
 #training
-epochs=1000
+epochs=500
 
 
 for e in tqdm(range(epochs),desc="RMSProp Maxits"):
@@ -80,16 +68,13 @@ for e in tqdm(range(epochs),desc="RMSProp Maxits"):
 
 
 predicted_data=Xlk.numpy()
-imputed_data = np.nan_to_num(data*mask)+predicted_data*(1-mask)
+imputed_data = np.nan_to_num(obs_data*mask)+predicted_data*(1-mask)
 
-
-print(dataset[0:3,0])
-print(data[0:3,0])
 
 fig, axes = plt.subplots(1,2)
-axes[0].scatter(dataset[:,0],dataset[:,1],alpha=0.8,marker='.')
+axes[0].scatter(data[:n_samples,0],data[:n_samples,1],alpha=0.8,marker='.')
 axes[0].set_title("ground truth")
-axes[1].scatter(data[cids,0],data[cids,1],alpha=0.7,label="observable",marker='.')
+axes[1].scatter(obs_data[cids,0],obs_data[cids,1],alpha=0.7,label="observable",marker='.')
 axes[1].scatter(imputed_data[mids,0],imputed_data[mids,1],alpha=0.7,label="imputed",color="g",marker='.')
 axes[1].legend()
 axes[1].set_title("imputation")
