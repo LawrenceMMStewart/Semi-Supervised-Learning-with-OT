@@ -1,6 +1,10 @@
 """
+File: toy_examples 
+Description: This file implements the data imputation via sinkorn using a batch approach 
+for sklearn toy datasets.
+
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
-Liscence: Mit License 
+License: Mit License 
 """
 
 import numpy as np 
@@ -9,8 +13,10 @@ from sklearn import datasets
 from sklearn.utils import shuffle
 from utils.utils import *
 from utils.sinkhorn import *
+import tensorflow as tf
 import tensorflow_probability as tfp
 from tqdm import tqdm
+
 
 np.random.seed(123) 
 
@@ -23,48 +29,47 @@ noisy_scurve,_ = datasets.make_s_curve(n_samples=n_samples)
 #make 3d data 2d
 noisy_scurve = np.delete(noisy_scurve,1,1)
 
+data = noisy_moons
+
+mframe = MissingData(data)
 
 # create the observable dataset and mask:
-data,mask = MCAR_Mask(noisy_scurve,0.10) #0.15 for the other 2 
+mframe.MCAR_Mask(0.10) #0.15 for the other 2 
+
+
+#shuffle observable data and mask
+obs_data, mask = mframe.Shuffle()
+
+
+print("percentage of datapoints with missing values ",mframe.percentage_missing(),"%")
+print("percentage of empty points ",mframe.percentage_empty(),"%")
+mids,cids = mframe.Generate_Labels()
+
 
 #batchsize
-m = 250
-#shuffle data set and partition into subsets of size 2m 
-data, mask = shuffle(data,mask)
+batch_size = 250
+assert batch_size % 2 == 0 ; "batchsize corresponds to the size of Xkl and hence must be even sized"
 
-data, mask = (data.astype(np.float32), mask.astype(np.float32))
-
-print("percentage of datapoints with missing values ",percentage_missing(mask),"%")
-print("percentage of empty5points ",percentage_empty(mask),"%")
-
-mids, cids = generate_labels(mask)
-
-
-k = int(data.shape[0]/m)
+k = int(n_samples/batch_size)
 
 #replace nans by means + noise 
-X = Initialise_Nans(data)
-#split the data into k partitions
-data_partitions = np.array_split(X,k)
-#split the masks into partitions 
-mask_partitions = np.array_split(mask,k)
-#optimiser
+X = mframe.Initialise_Nans()
+
+
+T=100
+epochs = 500
 opt=tf.compat.v1.train.RMSPropOptimizer(learning_rate=.01)
 
+for t in tqdm(range(T),desc = "Iteration"):
+    #each part of the imputation
+    indicies = [i for i in range(n_samples)]
+    kl_indicies = np.random.choice(indicies,batch_size,replace=False)
 
-imputed_list = []
-epochs = 50000
+    Xkl = tf.Variable(X[kl_indicies])
+    msk = mask[kl_indicies]
+    loss_fun = lambda: sinkhorn_sq_batch(Xkl,p=2,niter=10,div=True,epsilon=0.1)
 
-loss_fun = lambda: sinkhorn_sq_batch(Xlk,p=2,niter=10,div=True,epsilon=0.1)
-
-#iterate over batches Xlk
-for i in tqdm(range(len(data_partitions)),desc="Imputation of folds"):
-    #seperate into Xk and Xl 
-    Xlk=tf.Variable(data_partitions[i])
-    #obtain the mask Xkl
-    msk = mask_partitions[i]
-    #update that batch 
-    for e in tqdm(range(epochs),desc="RMSProp Maxits"):
+    for e in tqdm(range(epochs),desc="RMSProp epoch"):
         #compute gradient
         grads_and_vars = opt.compute_gradients(loss_fun)
 
@@ -72,13 +77,12 @@ for i in tqdm(range(len(data_partitions)),desc="Imputation of folds"):
         mskgrads_and_vars=[(g*(1-msk),v) for g,v in grads_and_vars]
         #apply gradient step
         opt.apply_gradients(mskgrads_and_vars)
-    imputed_list.append(Xlk.numpy())
+    
+    #update X:
+    X[kl_indicies] = Xkl.numpy()
 
 
-
-
-predicted_data=np.concatenate(imputed_list)
-imputed_data = np.nan_to_num(data*mask)+predicted_data*(1-mask)
+imputed_data = np.nan_to_num(obs_data*mask)+X*(1-mask)
 
 
 
@@ -92,4 +96,4 @@ axes[1].set_title("imputation")
 plt.show()
     
 
- #to fix -- create a numpy.arraysplit for tensorflow for the sinkhorn algorithm
+#  to fix -- create a numpy.arraysplit for tensorflow for the sinkhorn algorithm

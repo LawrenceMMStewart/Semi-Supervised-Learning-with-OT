@@ -1,11 +1,13 @@
 """
-Functions for Regularised OT 
+File: utils
+Description: Contains functions for datamasking and processing. 
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
-Liscence: Mit License
+License: Mit License
 """
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.utils import shuffle
 
 
 def euclidean_dist(X,Y):
@@ -93,8 +95,7 @@ class MissingData():
         ----------
         data : array n x p
         """
-        #origional data and dimensions 
-        self.data = data
+
         self.n = data.shape[0]
         self.p = data.shape[1]
         #observable data - with Nans
@@ -104,6 +105,7 @@ class MissingData():
         #type of arrays (for tensorflow compatabilities)
         self.arr_type = arr_type
 
+        self.data = data.astype(arr_type)
 
 
     def MCAR_Mask(self,prob):
@@ -120,7 +122,7 @@ class MissingData():
         obs_data : array (n x d)
         mask : array (n x d) with elements {0,1}
         """
-        mask = np.random.binomial(1,1-prob,n*p).reshape((self.n,self.p)).astype(self.arr_type)
+        mask = np.random.binomial(1,1-prob,self.n*self.p).reshape((self.n,self.p)).astype(self.arr_type)
 
         #this could potentially generate empty data-points with probability
         # (1-p)^d. We remove this possibility here:
@@ -132,7 +134,7 @@ class MissingData():
             
         nan_mask=mask.copy()
         nan_mask[nan_mask==0]=np.nan
-        obs_data=data*nan_mask
+        obs_data=self.data*nan_mask
 
         self.obs_data = obs_data
         self.mask = mask         
@@ -163,6 +165,19 @@ class MissingData():
                     filled[i,j]=means[j]+np.random.normal(0,eta)
 
         return filled
+
+
+    def Shuffle(self):
+        """
+        Shuffles the order of the observable data and mask 
+
+        Output
+        --------
+        obs_data : array (n x p)
+        mask : array (n x p) with elements in {0,1}
+        """
+        self.obs_data, self.mask = shuffle(self.obs_data,self.mask)
+        return self.obs_data, self.mask
 
 
     def Generate_Labels(self):
@@ -226,7 +241,6 @@ class MissingData():
 
 
 
-
     # ------------------------------------ Simple Experiment Functions ---------------------
     def missing_secondhalf2D(self):
         """
@@ -274,143 +288,4 @@ class MissingData():
         self.mask = mask
 
         return obs_data,mask
-
-
-
-
-
-
-
-# #please fix bug here
-# def MCAR_Mask(data,p,del_empty=False):
-#     """
-#     Randomly masks values of data with probability p
-#     i.e. Missing Completely At Random
-
-#     Parameters
-#     -----------
-#     data : array n x d
-#     p : float [0,1]
-
-#     Output
-#     ----------
-#     obs_data : array (n x d)
-#     mask : array (n x d) with elements {0,1}
-#     """
-
-#     #extract dimensions of data
-#     n=data.shape[0]
-#     d=data.shape[1]
-
-#     #randomly select some data points to change to nan (the mask)
-#     mask=np.random.binomial(1,1-p,n*d).reshape(data.shape).astype('float32')
-#     #create the observable data matrix
-#     nan_mask=mask.copy()
-#     nan_mask[nan_mask==0]=np.nan
-#     obs_data=data*nan_mask
-
-#     if del_empty:
-#         #deal with the case where a datapoint is empty:
-#         to_delete=[]
-#         for i in range(n):
-#             if np.isnan(obs_data[i]).all():
-#                 to_delete.append(i)
-#         #remove empty datapoints
-#         obs_data=np.delete(obs_data,to_delete,axis=0)
-#         mask=np.delete(mask,to_delete,axis=0)
-
-#     return obs_data,mask
-
-
-# def Initialise_Nans(data,eta=0.1):
-#     """
-#     Sets Nans in data matrix to the sample mean for that dimension
-#     with some added random noise from a normal N(0,eta)
-
-#     Parameters
-#     ----------
-
-#     data : array (n x d) 
-#     eta : float
-
-#     Output
-#     ---------
-
-#     filled : array (n x d)
-#     """
-
-#     filled=data.copy()
-#     means=np.nanmean(data,axis=0)
-#     for i in range(data.shape[0]):
-#         for j in range(data.shape[1]):
-#             if np.isnan(filled[i,j]):
-#                 filled[i,j]=means[j]+np.random.normal(0,eta)
-
-
-#     return filled
-
-
-
-
-# def percentage_missing(mask):
-#     """
-#     Returns the percentage of the data that has missing values
-
-#     Parameters
-#     ----------
-#     mask : np.array (n x d) {0,1}
-    
-#     Output
-#     ----------
-#     percentage: float
-
-#     """
-
-#     labels=[1 if 0 in mask[i] else 0 for i in range(len(mask))]
-#     return np.mean(labels)
-
-# def percentage_empty(mask):
-#     """
-#     Returns the percentage of the data that is empty
-#     i.e. each point of the data is missing
-
-#     Parameters
-#     ----------
-#     mask : np.array (n x d) {0,1}
-    
-#     Output
-#     ----------
-#     percentage: float
-
-#     """
-#     labels=[1 if (mask[i]==0).all() else 0 for i in range(len(mask))]
-#     return np.mean(labels)
-
-# def generate_labels(mask):
-#     """
-#     Returns two lists, the first consisting of the indicies
-#     of the data points who are missing values, and the second
-#     the indices of data points without missing values
-
-#     Parameters
-#     ----------
-#     mask : np.array (n x d) {0,1}
-
-#     Output
-#     ----------
-#     missing_ids : int list
-#     complete_ids : int list
-
-#     """
-#     missing_ids=[]
-#     complete_ids=[]
-#     for i in range(len(mask)):
-#         if 0 in mask[i]:
-#             missing_ids.append(i)
-#         else:
-#             complete_ids.append(i)
-
-#     return missing_ids,complete_ids
-
-
 

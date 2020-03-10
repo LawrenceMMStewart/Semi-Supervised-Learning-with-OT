@@ -1,9 +1,11 @@
 """
-Test: Check that imputation of a simple 2d dataset works:
-the first half of the dataset is complete and the second half of the dataset
-is missing one of its two dimensional values.
+File: half_missing
+Description: This file is a test case to ensure that when calculating the 
+sinkhorn divergance from a dataset to itself with missing values
+it can retrieve the values to a satisfactory degree.
+
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
-Liscence: Mit License 
+License: Mit License 
 """
 
 import numpy as np 
@@ -33,11 +35,11 @@ choice = noisy_moons
 data=np.concatenate((choice,choice)).astype(np.float32)
 
 #initialise the class
-mframe = MissingData(data)
+mframe = MissingData(data=data)
 obs_data, mask = mframe.missing_secondhalf2D()
 
 
-print("percentage of datapoints with missing values ",mframe.percentage_missing,"%")
+print("percentage of datapoints with missing values ",mframe.percentage_missing(),"%")
 print("percentage of empty points ",mframe.percentage_empty(),"%")
 mids,cids = mframe.Generate_Labels()
 

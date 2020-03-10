@@ -1,8 +1,9 @@
 """
-Test case to ensure gradient of sinkhorn is calculated correction
-Author Lawrence Stewart <lawrence.stewart@ens.fr>
-Liscence: Mit License 
+File: test_SHGrad
+Description: Test case to ensure gradient of sinkhorn is calculated correction
 
+Author Lawrence Stewart <lawrence.stewart@ens.fr>
+License: Mit License 
 
 Consider the problem of 2 uniform point clouds, running sinkhorn w.r.t. one of them and
 optimising via gradient descent we would expect them to overlap
