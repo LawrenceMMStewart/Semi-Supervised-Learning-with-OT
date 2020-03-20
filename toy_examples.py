@@ -19,7 +19,7 @@ from tqdm import tqdm
 import pickle 
 
 #this works
-np.random.seed(123) 
+np.random.seed(123)
 
 n_samples = 400 #1500
 
@@ -30,7 +30,7 @@ noisy_scurve,_ = datasets.make_s_curve(n_samples=n_samples)
 #make 3d data 2d
 noisy_scurve = np.delete(noisy_scurve,1,1)
 
-data = noisy_circles
+data = noisy_moons
 
 mframe = MissingData(data)
 
