@@ -86,16 +86,19 @@ def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.1):
 
     Parameters
     ----------
-    n,m,p : int
+    n,m : int
+    p : float (exponent)
     X,Y : tensor (n x p), (m x p)
     div : Boolean
     niter : int
     epsilon: float
 
+
     Output
     ---------
     sinkhorn_costXY : tensor (1)
     """
+
     CXY = cost_mat(X,Y,n,m,p)
     sinkhorn_costXY = sinkhorn_cost_log(n,m,CXY,niter,epsilon)
     if div:
@@ -106,6 +109,8 @@ def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.1):
         return sinkhorn_costXY - 1/2 *(sinkhorn_costXX+sinkhorn_costYY)
     else:
         return sinkhorn_costXY
+
+ 
 
 def sinkhorn_sq_batch(X,p=2,niter=10,div=True,epsilon=0.1):
     #split batch in half
