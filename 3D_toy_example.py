@@ -21,14 +21,17 @@ np.random.seed(123)
 
 
 parser = argparse.ArgumentParser(description = "Sinkhorn Batch Imputation for 3D Dataset")
+parser.add_argument("batch_size",help = "|Xkl|",type = int)
 parser.add_argument("epsilon", help = "Sinkhorn Divergance Regularisation Parameter",type = float)
-parser.add_argument("exponent" , help = "Exponent of euclidean distance (1 or 2)", type = int)
+parser.add_argument("exponent" , help = "Exponent of euclidean distance (1 or 2)", type = float)
 parser.parse_args()
 args = parser.parse_args()
 
-n_samples =  1500 #400
+n_samples =  1000 #1000
 data,_ = datasets.make_s_curve(n_samples=n_samples)
 
+
+name = str(args.batch_size)+'-'+str(args.epsilon)+'-'+str(args.exponent)
 
 #insert nans as missing data
 mframe = MissingData(data)
@@ -47,7 +50,7 @@ mids,cids = mframe.Generate_Labels()
 
 
 #batchsize
-batch_size = 50
+batch_size = args.batch_size
 assert batch_size % 2 == 0 ; "batchsize corresponds to the size of Xkl and hence must be even sized"
 
 opt=tf.compat.v1.train.RMSPropOptimizer(learning_rate=.1)
@@ -56,11 +59,11 @@ gpu_list = get_available_gpus()
 
 #initialise the unobservable values
 X_start = mframe.Initialise_Nans()
-vars_to_save = [X_start] 
+
 
 #minisise sinkhorn distance for each stochastic batch  
 X = X_start.copy()
-epochs = 50000
+epochs = 20000
 indicies = [i for i in range(n_samples)]
 
 #stochastic batch gradient descent w.r.t sinkhorn divergance
@@ -85,19 +88,9 @@ for t in tqdm(range(epochs),desc = "Epoch"):
 #calculate and save the imputed data
 imputed_data = np.nan_to_num(obs_data*mask) + X*(1-mask)
 
-#plot 
-xinit=data[cids,0]
-yinit=data[cids,1]
-zinit=data[cids,2]
-
-xfill=imputed_data[mids,0]
-yfill=imputed_data[mids,1]
-zfill=imputed_data[mids,2]
-
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.scatter(xinit,yinit,zinit,alpha = 0.7,color='b',marker = '.')
-ax.scatter(xfill,yfill,zfill,alpha=0.8,color ='g',marker= 'x')
-plt.show()
+#save the variables for each example 
+vars_to_save = [X_start ,data, imputed_data ,mids,cids]
+with open("./variables/3D_toy_example/"+name+".pickle" ,'wb') as f:
+    pickle.dump(vars_to_save,f)
 
 

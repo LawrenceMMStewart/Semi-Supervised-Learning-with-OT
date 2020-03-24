@@ -4,6 +4,7 @@ Description: Contains functions for datamasking and processing.
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
 License: Mit License
 """
+from tensorflow.python.client import device_lib
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -289,3 +290,8 @@ class MissingData():
 
         return obs_data,mask
 
+
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
