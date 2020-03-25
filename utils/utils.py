@@ -98,15 +98,16 @@ class MissingData():
         """
 
         self.n = data.shape[0]
-        self.p = data.shape[1]
+        self.m = data.shape[1]
         #observable data - with Nans
         self.obs_data = None
         #binary data mask 
         self.mask = None
         #type of arrays (for tensorflow compatabilities)
         self.arr_type = arr_type
-
+        #data
         self.data = data.astype(arr_type)
+
 
 
     def MCAR_Mask(self,prob):
@@ -123,13 +124,13 @@ class MissingData():
         obs_data : array (n x d)
         mask : array (n x d) with elements {0,1}
         """
-        mask = np.random.binomial(1,1-prob,self.n*self.p).reshape((self.n,self.p)).astype(self.arr_type)
+        mask = np.random.binomial(1,1-prob,self.n*self.m).reshape((self.n,self.m)).astype(self.arr_type)
 
         #this could potentially generate empty data-points with probability
         # (1-p)^d. We remove this possibility here:
         for i in range(self.n):
             if (mask[i] == 0).all():
-                reset_ind = np.random.randint(0,self.p)
+                reset_ind = np.random.randint(0,self.m)
                 mask[i][reset_ind] = 1
 
             
@@ -161,7 +162,7 @@ class MissingData():
         filled=self.obs_data.copy()
         means=np.nanmean(self.obs_data,axis=0)
         for i in range(self.n):
-            for j in range(self.p):
+            for j in range(self.m):
                 if np.isnan(filled[i,j]):
                     filled[i,j]=means[j]+np.random.normal(0,eta)
 
@@ -242,6 +243,55 @@ class MissingData():
 
 
 
+
+    def getbatch_ids(self, batch_size, replace = False):
+        """
+        Returns ids of a batch Xkl with or without replacement
+        
+        Parameters
+        -----------
+        batch_size : int (divisible by 2)
+        replace : Boolean
+
+        """
+        assert (batch_size >1) and (batch_size%2==0) ; "Please enter a positive even batch_size" 
+        #indicies of data
+        indicies = [i for i in range(self.n)]
+        #sample indicies with or without replacement
+        kl_indicies = np.random.choice(indicies, batch_size, replace = replace)
+        return kl_indicies
+
+
+    def getbatch_jids(self, batch_size , j, replace = False):
+        """
+        Returns ids of a batch Xkl with or without replacement where 
+        Xk has no missing values on component j and Xl has missing values
+        on component j
+        
+        Parameters
+        -----------
+        batch_size : int (divisible by 2)
+        j : int 
+        replace : Boolean
+
+        """
+        assert (batch_size >1) and (batch_size%2==0) ; "Please enter a positive even batch_size" 
+        assert j< self.m ; "Please enter a j value between 0 and d-1"
+        #indicies of data with missing and full j 
+
+        present_j = np.where(self.mask[:,j] == 1)[0]
+        missing_j = np.where(self.mask[:,j] == 0)[0]
+        #sample indicies with or without replacement
+        k_indicies = np.random.choice(present_j, batch_size//2, replace = replace)
+        l_indicies = np.random.choice(missing_j, batch_size//2, replace = replace)
+
+        #kl indicies
+        kl_indicies = np.concatenate((k_indicies,l_indicies))
+
+        return kl_indicies
+
+
+
     # ------------------------------------ Simple Experiment Functions ---------------------
     def missing_secondhalf2D(self):
         """
@@ -289,6 +339,7 @@ class MissingData():
         self.mask = mask
 
         return obs_data,mask
+
 
 
 
