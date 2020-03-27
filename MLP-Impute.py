@@ -50,7 +50,7 @@ per = mframe.percentage_missing()
 mids,cids = mframe.Generate_Labels()
 
 
-
+l2reg=1e-4
 d=mframe.m
 Imputers = [] 
 # for a test create a MLP for co-ordinate 1
@@ -58,9 +58,9 @@ Imputers = []
 for j in range(d):
 	Imputers.append(tf.keras.Sequential([
 	keras.layers.Dense(2*(d-1), activation ='relu',input_shape = (d-1,),
-		kernel_regularizer=tf.keras.regularizers.l2()),
-	keras.layers.Dense(d-1,activation = 'relu',kernel_regularizer=tf.keras.regularizers.l2()),
-	keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2())
+		kernel_regularizer=tf.keras.regularizers.l2(l2reg)),
+	keras.layers.Dense(d-1,activation = 'relu',kernel_regularizer=tf.keras.regularizers.l2(l2reg)),
+	keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2(l2reg))
 	]))
 
 batch_size = args.batch_size
@@ -75,52 +75,74 @@ X_start = mframe.Initialise_Nans()
  
 
 #minisise sinkhorn distance for each stochastic batch  
-X = X_start.copy() #X_0 in the algorithm
-epochs = 100
-train_epochs = 1000  #K in paper
-# indicies = [i for i in range(n_samples)]
-
+X = X_start.copy() #X_0, X_1, ... X_T in the algorithm
+epochs = 10 # overall training epochs
+train_epochs = 100  #K i.e number of stochastic gradient descent steps
+n_average = 3   # number of sinkhorn divergances to average over 
 
 
 for t in tqdm(range(epochs),desc = "Iteration"):
 	for j in tqdm(range(len(Imputers)),desc = "Round Robin"):
+
+		#copy of X for training weights of Imputer_j and its mask
+		X_hat = X.copy()
+		maskj = np.ones(mask.shape)
+		maskj[:,j] = mask[:,j]
+
+
+		#indicies of dimensions that are not j
+		notj = tf.constant([i for i in range(d) if i!=j])
+
+
 		for k in tqdm(range(train_epochs),desc = "Training Imputer"):
-			#Xk has no missing values on dim j, Xl has only missing values on dim 
-			kl_indicies = mframe.getbatch_jids(batch_size,j,replace=False)
+			
+			#Impute X-j (i.e. X with no j column)
+			X_no_j = tf.gather(X_hat,notj,axis=1).numpy()
+			X_pred = Imputers[j](X_no_j)
+			X_hat = X_hat*maskj + X_pred*(1-maskj)
+
+			#gradient descent w.r.t MLP weights over average 
+			#sinkhorn divergances of batches
 			with tf.GradientTape() as tape:
+				mean_loss = tf.constant(0.)
+				for mean_epochs in range(n_average):
+					#Xk has no missing values on dim j, Xl has only missing values on dim 
+					kl_indicies = mframe.getbatch_jids(batch_size,j,replace=False)
+					#Sample the batch as a variable (maybe a constant works)
+					Xkl = tf.constant(X_hat.numpy()[kl_indicies]) # maybe this needs to be a tensorflow variable 
+					
+					#create the mask msk and the mask for axis j
+					msk = mask[kl_indicies]
+					#mask for column j 
+					mskj = np.ones(msk.shape)
+					mskj[:,j] = msk[:,j]
 
-				#Sample the batch as a variable (maybe a constant works)
-				Xkl = tf.constant(X[kl_indicies]) # maybe this needs to be a tensorflow variable 
+					#retrieve Xkl without the j'th dimension
+					Xkl_no_j = tf.gather(Xkl,notj,axis=1)				
+
+					#predict dimension j 
+					pred_j = Imputers[j](Xkl_no_j)
+			                       
+					#impute the data on dimension j
+					Xkl_imputed = Xkl*mskj + (1-mskj)*pred_j 	
+					
+					#calculate loss
+					loss = sinkhorn_sq_batch(Xkl_imputed,p=2,niter=10,div=True,epsilon=0.01)
+					mean_loss+=loss
 				
-				#create the mask msk and the mask for axis j
-				msk = mask[kl_indicies]
-				#mask for column j 
-				mskj = np.ones(msk.shape)
-				mskj[:,j] = msk[:,j]
-
-
-				#indicies of dimensions that are not j
-				notj = tf.constant([i for i in range(d) if i!=j])
-
-				#retrieve Xkl without the j'th dimension
-				Xkl_no_j = tf.gather(Xkl,notj,axis=1)				
-
-				#predict dimension j 
-				pred_j = Imputers[j](Xkl_no_j)
-		                       
-				#impute the data on dimension j
-				Xkl_imputed = Xkl*mskj + (1-mskj)*pred_j 	
-				
-				#calculate loss
-				loss = sinkhorn_sq_batch(Xkl_imputed,p=2,niter=10,div=True,epsilon=0.01)
-
-			
+				#average the loss over several batches
+				mean_loss = mean_loss/n_average
 			#gradients with respect to network parameters
-			gradients = tape.gradient(loss ,Imputers[j].trainable_weights)
 			
+			gradients = tape.gradient(loss ,Imputers[j].trainable_weights)
 			opt.apply_gradients(zip(gradients,Imputers[j].trainable_weights))
 
+
 			
+		#after training Imputer j for k epochs update X
+		X = X_hat.numpy().copy()
+			
+
 
 
 
