@@ -57,12 +57,13 @@ Imputers = []
 #do we need a flatten?
 for j in range(d):
 	Imputers.append(tf.keras.Sequential([
-	keras.layers.Dense(2*(d-1), activation ='relu',input_shape = (d-1,)),
-	keras.layers.Dense(d-1,activation = 'relu'),
-	keras.layers.Dense(1)
+	keras.layers.Dense(2*(d-1), activation ='relu',input_shape = (d-1,),
+		kernel_regularizer=tf.keras.regularizers.l2()),
+	keras.layers.Dense(d-1,activation = 'relu',kernel_regularizer=tf.keras.regularizers.l2()),
+	keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2())
 	]))
 
-batchsize = args.batch_size
+batch_size = args.batch_size
 assert batch_size % 2 == 0 ; "batchsize corresponds to the size of Xkl and hence must be even sized"
 
 #potentially use the tf.compat.v1.train.Adam version if this has problems
@@ -73,47 +74,53 @@ gpu_list = get_available_gpus()
 X_start = mframe.Initialise_Nans()
  
 
-
 #minisise sinkhorn distance for each stochastic batch  
 X = X_start.copy() #X_0 in the algorithm
 epochs = 100
 train_epochs = 1000  #K in paper
 # indicies = [i for i in range(n_samples)]
 
-#clears old sessions
-tf.keras.backend.clear_session()
+
 
 for t in tqdm(range(epochs),desc = "Iteration"):
 	for j in tqdm(range(len(Imputers)),desc = "Round Robin"):
 		for k in tqdm(range(train_epochs),desc = "Training Imputer"):
 			#Xk has no missing values on dim j, Xl has only missing values on dim 
 			kl_indicies = mframe.getbatch_jids(batch_size,j,replace=False)
-			#create Xkl and its mask 
-
 			with tf.GradientTape() as tape:
 
-				#create Xkl and its mask
-				Xkl = tf.constant(X[kl_indicies]) #MAYBE THIS SHOULD BE A VARIABLE
+				#Sample the batch as a variable (maybe a constant works)
+				Xkl = tf.constant(X[kl_indicies]) # maybe this needs to be a tensorflow variable 
+				
+				#create the mask msk and the mask for axis j
 				msk = mask[kl_indicies]
+				#mask for column j 
+				mskj = np.ones(msk.shape)
+				mskj[:,j] = msk[:,j]
 
 
 				#indicies of dimensions that are not j
-				notj = [i for i in range(d) if i!=j]
+				notj = tf.constant([i for i in range(d) if i!=j])
+
+				#retrieve Xkl without the j'th dimension
+				Xkl_no_j = tf.gather(Xkl,notj,axis=1)				
 
 				#predict dimension j 
-				pred_j = Imputers[j](Xkl[:,notj])
-
-				
+				pred_j = Imputers[j](Xkl_no_j)
+		                       
+				#impute the data on dimension j
+				Xkl_imputed = Xkl*mskj + (1-mskj)*pred_j 	
 				
 				#calculate loss
-				loss = sinkhorn_sq_batch(Xkl_fill,p=2,niter=10,div=True,epsilon=0.1)
+				loss = sinkhorn_sq_batch(Xkl_imputed,p=2,niter=10,div=True,epsilon=0.01)
 
-				#gradients with respect to network parameters
-				gradients = tape.gradient(loss , )
-				opt.apply_gradients
+			
+			#gradients with respect to network parameters
+			gradients = tape.gradient(loss ,Imputers[j].trainable_weights)
+			
+			opt.apply_gradients(zip(gradients,Imputers[j].trainable_weights))
 
-
-
+			
 
 
 
