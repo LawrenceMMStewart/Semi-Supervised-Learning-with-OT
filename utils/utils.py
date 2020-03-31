@@ -244,7 +244,7 @@ class MissingData():
 
 
 
-    def getbatch_ids(self, batch_size, replace = False):
+    def getbatch_ids(self, batch_size, replace = True):
         """
         Returns ids of a batch Xkl with or without replacement
         
@@ -262,7 +262,7 @@ class MissingData():
         return kl_indicies
 
 
-    def getbatch_jids(self, batch_size , j, replace = False):
+    def getbatch_jids(self, batch_size , j, replace = True):
         """
         Returns ids of a batch Xkl with or without replacement where 
         Xk has no missing values on component j and Xl has missing values

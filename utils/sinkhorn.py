@@ -42,7 +42,7 @@ def cost_mat(X,Y,n,m,p=2):
         return tf.sqrt(C+10**(-3))**p
 
 @tf.function 
-def K_tild(u,v,n,m,C,epsilon=0.1):
+def K_tild(u,v,n,m,C,epsilon=0.01):
     """
     Calculates the matrix exp ( C_ij -ui- vj ) for sinkhorn step
     for uniform measures
@@ -52,7 +52,7 @@ def K_tild(u,v,n,m,C,epsilon=0.1):
     return k_tild
 
 @tf.function 
-def sinkhorn_step_log(u,v,n,m,C,epsilon=0.1):
+def sinkhorn_step_log(u,v,n,m,C,epsilon=0.01):
     """
     Calculates one step of sinkhorn in logsumexp manner
     for uniform measures
@@ -66,7 +66,7 @@ def sinkhorn_step_log(u,v,n,m,C,epsilon=0.1):
     return u,v
 
 @tf.function 
-def sinkhorn_cost_log(n,m,C,niter,epsilon=0.1):
+def sinkhorn_cost_log(n,m,C,niter,epsilon=0.01):
     """
     Calculates the log sinkhorn cost for uniform measures 
     """
@@ -79,7 +79,7 @@ def sinkhorn_cost_log(n,m,C,niter,epsilon=0.1):
     final_cost_log = tf.reduce_sum(gamma_log*C)
     return final_cost_log
 
-def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.1):
+def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.01):
     """
     Returns the sinkhorn loss or divergance calculated 
     using the logsumexp approach for uniform measures
@@ -112,7 +112,7 @@ def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.1):
 
  
 
-def sinkhorn_sq_batch(X,p=2,niter=10,div=True,epsilon=0.1):
+def sinkhorn_sq_batch(X,p=2,niter=10,div=True,epsilon=0.01):
     #split batch in half
     X1,X2 = tf.split(X,2)
     n=X1.shape[0]

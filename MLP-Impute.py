@@ -16,8 +16,9 @@ from utils.utils import *
 from utils.sinkhorn import *
 import tensorflow as tf
 from tqdm import tqdm
-import pickle 
 from tensorflow import keras
+import pickle 
+from mpl_toolkits.mplot3d import Axes3D
 np.random.seed(123)
 
 
@@ -25,10 +26,12 @@ parser = argparse.ArgumentParser(description = "Sinkhorn Batch Imputation for 3D
 parser.add_argument("batch_size",help = "|Xkl|",type = int) 
 parser.add_argument("epsilon", help = "Sinkhorn Divergance Regularisation Parameter",type = float)
 parser.add_argument("exponent" , help = "Exponent of euclidean distance (1 or 2)", type = float)
+parser.add_argument("epochs",help = "Epochs of round robin imputations", type = int)
+parser.add_argument("train_epochs",help = "training iterations ", type = int)
 parser.parse_args()
 args = parser.parse_args()
 
-name = str(args.batch_size)+'-'+str(args.epsilon)+'-'+str(args.exponent)
+name = str(args.batch_size)+'-'+str(args.epsilon)+'-'+str(args.exponent)+'-'+str(args.epochs)+'-'+str(args.train_epochs)
 
 n_samples =  1000 #1000
 data,_ = datasets.make_s_curve(n_samples=n_samples)
@@ -38,7 +41,7 @@ data,_ = datasets.make_s_curve(n_samples=n_samples)
 mframe = MissingData(data)
 
 # create the observable dataset and mask:
-mframe.MCAR_Mask(0.1) #0.15 for the other 2 
+mframe.MCAR_Mask(0.04) #0.15 for the other 2 
 
 #shuffle observable data and mask
 obs_data, mask = mframe.Shuffle()
@@ -75,29 +78,26 @@ X_start = mframe.Initialise_Nans()
  
 
 #minisise sinkhorn distance for each stochastic batch  
-X = X_start.copy() #X_0, X_1, ... X_T in the algorithm
-epochs = 10 # overall training epochs
-train_epochs = 100  #K i.e number of stochastic gradient descent steps
+Xt = X_start.copy() #X_0, X_1, ... X_T in the algorithm
+epochs = args.epochs # overall training epochs
+train_epochs = args.train_epochs  #K i.e number of stochastic gradient descent steps
 n_average = 3   # number of sinkhorn divergances to average over 
 
 
 for t in tqdm(range(epochs),desc = "Iteration"):
 	for j in tqdm(range(len(Imputers)),desc = "Round Robin"):
 
-		#copy of X for training weights of Imputer_j and its mask
-		X_hat = X.copy()
+		#create a mask just for dimension j (i.e. we consider the other missing values as present)
 		maskj = np.ones(mask.shape)
 		maskj[:,j] = mask[:,j]
-
 
 		#indicies of dimensions that are not j
 		notj = tf.constant([i for i in range(d) if i!=j])
 
-
 		for k in tqdm(range(train_epochs),desc = "Training Imputer"):
 			
-			#Impute X-j (i.e. X with no j column)
-			X_no_j = tf.gather(X_hat,notj,axis=1).numpy()
+			#Create X_hat by imputing Xt  
+			X_no_j = tf.gather(Xt,notj,axis=1).numpy()
 			X_pred = Imputers[j](X_no_j)
 			X_hat = X_hat*maskj + X_pred*(1-maskj)
 
@@ -107,7 +107,7 @@ for t in tqdm(range(epochs),desc = "Iteration"):
 				mean_loss = tf.constant(0.)
 				for mean_epochs in range(n_average):
 					#Xk has no missing values on dim j, Xl has only missing values on dim 
-					kl_indicies = mframe.getbatch_jids(batch_size,j,replace=False)
+					kl_indicies = mframe.getbatch_jids(batch_size,j,replace=True)
 					#Sample the batch as a variable (maybe a constant works)
 					Xkl = tf.constant(X_hat.numpy()[kl_indicies]) # maybe this needs to be a tensorflow variable 
 					
@@ -139,34 +139,38 @@ for t in tqdm(range(epochs),desc = "Iteration"):
 
 
 			
-		#after training Imputer j for k epochs update X
-		X = X_hat.numpy().copy()
-			
+		#after training Imputer j for k epochs update Xt using weights:
+		X_no_j = tf.gather(Xt,notj,axis=1).numpy()
+		X_pred = Imputers[j](X_no_j)
+		Xt = Xt*maskj + X_pred*(1-maskj)
+		
+
+
+#save the variables for each example 
+vars_to_save = [X_start ,data, Xt ,mids,cids]
+with open("./variables/MLP-Impute/"+name+".pickle" ,'wb') as f:
+    pickle.dump(vars_to_save,f)
 
 
 
 
-# #stochastic batch gradient descent w.r.t sinkhorn divergance
-# for t in tqdm(range(epochs),desc = "Epoch"):
-# 	#sample the two batches whos concatenation is Xkl
-# 	kl_indicies = np.random.choice(indicies,batch_size,replace=True)
-# 	Xkl = tf.Variable(X[kl_indicies])
-# 	msk = mask[kl_indicies] #mask of Xkl
-# 	loss_fun = lambda: sinkhorn_sq_batch(Xkl,p=args.exponent,niter=10,div=True,
-# 		epsilon=args.epsilon) 
 
-# 	#compute gradient
-# 	grads_and_vars = opt.compute_gradients(loss_fun)
+#Impute the data using the model and plot:
+# xinit=data[cids,0]
+# yinit=data[cids,1]
+# zinit=data[cids,2]
+# #load the data that has been imputed 
+# xfill=X[mids,0]
+# yfill=X[mids,1]
+# zfill=X[mids,2]
 
-# 	#mask the gradient (i.e. so we are calculating w.r.t to X_impute)
-# 	mskgrads_and_vars=[(g*(1-msk),v) for g,v in grads_and_vars]
-# 	#apply gradient step
-# 	opt.apply_gradients(mskgrads_and_vars)
-# 	#update X:
-# 	X[kl_indicies] = Xkl.numpy()
+# #plot the 3d graph
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.scatter(xinit,yinit,zinit,alpha = 0.7,color='b',marker = '.')
+# ax.scatter(xfill,yfill,zfill,alpha=0.8,color ='g',marker= 'x')
+# # ax.set_title("Sinkhorn Imputation %i epochs %f missing"%(epochs,per))
+# ax.set_title("3d parametric imputation")
 
-# #calculate and save the imputed data
-# imputed_data = np.nan_to_num(obs_data*mask) + X*(1-mask)
-
-
+# plt.show()
 
