@@ -144,10 +144,31 @@ class MissingData():
         return obs_data, mask
 
 
+
+    def Initialise(self,sample):
+        """
+        Initialises Nans in data matrix to values of a sample
+        (which can be taken from some distribution)
+
+        Parameters
+        -----------
+        sample : array (n x d) values to fill the data in with
+        """
+
+        assert (self.obs_data).all!=None , "Initialisation of observable data is required"
+        filled=self.obs_data.copy()
+
+        missing = np.where(self.mask==0)
+        filled[missing]=sample[missing]
+        return filled
+
+
     def Initialise_Nans(self,eta=0.1):
         """
         Sets Nans in data matrix to the sample mean for that dimension
         with some added random noise from a normal N(0,eta)
+        This is just a implementation of Initialize with the distribution
+        being that of marcos paper.
 
         Parameters
         ----------
@@ -167,7 +188,6 @@ class MissingData():
                     filled[i,j]=means[j]+np.random.normal(0,eta)
 
         return filled
-
 
     def Shuffle(self):
         """
@@ -208,6 +228,9 @@ class MissingData():
                 complete_ids.append(i)
 
         return missing_ids,complete_ids
+
+
+
 
 
 
