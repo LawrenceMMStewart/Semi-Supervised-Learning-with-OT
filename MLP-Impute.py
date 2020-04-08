@@ -99,7 +99,7 @@ for t in tqdm(range(epochs),desc = "Iteration"):
 			#Create X_hat by imputing Xt  
 			X_no_j = tf.gather(Xt,notj,axis=1).numpy()
 			X_pred = Imputers[j](X_no_j)
-			X_hat = X_hat*maskj + X_pred*(1-maskj)
+			X_hat = Xt*maskj + X_pred*(1-maskj)
 
 			#gradient descent w.r.t MLP weights over average 
 			#sinkhorn divergances of batches
@@ -147,9 +147,12 @@ for t in tqdm(range(epochs),desc = "Iteration"):
 
 
 #save the variables for each example 
-vars_to_save = [X_start ,data, Xt ,mids,cids]
+vars_to_save = [X_start, data, Xt.numpy(), mids, cids, mframe]
 with open("./variables/MLP-Impute/"+name+".pickle" ,'wb') as f:
     pickle.dump(vars_to_save,f)
+
+for j in range(len(Imputers)):
+	Imputers[j].save("./variables/MLP-Impute/models/"+name+"-%i"%j)
 
 
 

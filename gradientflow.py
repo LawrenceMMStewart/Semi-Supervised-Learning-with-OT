@@ -30,6 +30,7 @@ args = parser.parse_args()
 n_samples =  1000 #1000
 data,_ = datasets.make_s_curve(n_samples=n_samples)
 
+#data.max() = 1.99  and data.min() = -1.99
 
 name = str(args.batch_size)+'-'+str(args.epsilon)+'-'+str(args.exponent)
 
@@ -37,7 +38,7 @@ name = str(args.batch_size)+'-'+str(args.epsilon)+'-'+str(args.exponent)
 mframe = MissingData(data)
 
 # create the observable dataset and mask:
-mframe.MCAR_Mask(0.1) #0.15 for the other 2 
+mframe.MCAR_Mask(0.05) #0.15 for the other 2 
 
 #shuffle observable data and mask
 obs_data, mask = mframe.Shuffle()
@@ -64,8 +65,8 @@ gpu_list = get_available_gpus()
 X_start1 = mframe.Initialise_Nans()
 
 #2) Initialisation with mixture of normals 
-µ1 = [0.3,0.3,0.3] #means of gaussians
-µ2 = [0.7,0.7,0.7]
+µ1 = [1,1.,1] #means of gaussians
+µ2 = [-1,-1.,-1]
 means = [µ1,µ2]
 
 cov = [[0.1,0,0],[0,0.1,0],[0,0,0.1]] #covarience
@@ -120,5 +121,5 @@ for X_start in inits:
 vars_to_save = [history,data,mids,cids]
 with open("./variables/gradientflow/"+name+".pickle" ,'wb') as f:
     pickle.dump(vars_to_save,f)
-breakpoint()
+
 
