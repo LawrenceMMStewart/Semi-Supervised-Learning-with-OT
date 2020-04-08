@@ -1,82 +1,171 @@
 """
 File: animate
-Description: Contains functions for animating (used in the gradient descent)
+Description: Contains functions for animating (used to show gradient flow)
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
 License: Mit License
 """
 
-import numpy as np
+from utils.animate import * 
 import matplotlib.pyplot as plt
-# import mpl_toolkits.mplot3d.axes3d as p3
+import pickle
+import argparse
+import os.path
+import numpy as np
+import numpy as np
+import mpl_toolkits.mplot3d.axes3d as p3
 import matplotlib.animation as animation
+import pandas as pd
 
-def update3D(iteration, data, mids,scatters):
+
+
+def animate3DFlow(framelist,mids,cids,name,K=1,save=False,fps=30):
     """
-    Update the data held by the scatter plot and therefore animates it.
+    Animates a 3d animation of gradient flow
 
-    Parameters:
-    ------------
-    iteration (int): Current iteration of the animation
-    data (list): List of the data positions at each iteration.
-    mids (list): indicies of data points that have missing values
-    scatters (list): List of all the scatters (One per element)
-
-    Returns:
-    ------------
-    list: List of scatters (One per element) with new coordinates
-    """
-
-    #plot the complete data
-    for i in range(len(mids)):
-    	mid = mids[i]
-    	#i+1 as first entry is for the cids 
-        scatters[i+1]._offsets3d = (data[iteration][mid,0:1], data[iteration][mid,1:2], 
-        	data[iteration][mid,2:],alpha = 0.8)
-    return scatters
-
-def animate3D(data,mids,cids, save=False,title="Gradient Flow"):
-    """
-    Creates the 3D figure and animates it with the input data.
-    
     Parameters
-    ------------
-    data (list): List of the data positions at each iteration.
-    save (bool): Whether to save the recording of the animation. (Default to False).
+    ----------
+    framelist : list of n x d arrays (frames)
+    mids : int list 
+    cids : int list
+    name : str 
+    K    : Scaling factor for title e.g. if one wishes to take
+           a frame list that consists of every K'th iterations
+    save : Boolean
+    fps  : int  
     """
 
-    # Attaching 3D axis to the figure
+    print("animating ",len(framelist),"iterations")
+    Xt = np.concatenate(framelist,axis=0)
+    n_points = framelist[0].shape[0]
+    T=len(framelist)
+
+    t = np.array([np.ones(n_points)*i for i in range(T)]).flatten()
+    df = pd.DataFrame({"time": t ,"x" : Xt[:,0], "y" : Xt[:,1], "z" : Xt[:,2]})
 
 
-    #Initialize scatters 1 plot for all the cids and 1 plot for each of the mids
-    scatters= []
-    scatters.append(ax.scatter(data[0][cids,0],data[0][cids,1],data[0][cids,2],alpha=0.6))
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    title = ax.set_title(r'Gradient Flow' )
+    # plt.gca().patch.set_facecolor('white')
+
+
+    data=df[df['time']==0]
+    dx=np.array(data.x)
+    dy=np.array(data.y)
+    dz=np.array(data.z)
+    scatters = []
+    scatters.append(ax.scatter(dx[cids], dy[cids], dz[cids],alpha=0.2))
+    # scatters.append(ax.scatter(dx[mids], dy[mids], dz[mids],alpha=0.7,cmap='cool'))
     for mid in mids:
-    	scatters.append(ax.scatter(data[0][mid,0],data[0][mid,1],data[0][mid,2],alpha =0.8))
+        scatters.append(ax.scatter([dx[mid]],[dy[mid]],[dz[mid]],marker='.',alpha =0.8))
+    ax.view_init(elev=7,azim=88)
 
-    # Number of iterations
-    iterations = len(data)
+    def update_graph(num):
+        data=df[df['time']==num]
+        dx=np.array(data.x)
+        dy=np.array(data.y)
+        dz=np.array(data.z)
+        scatters[0]._offsets3d = (dx[cids], dy[cids], dz[cids])
+        for i in range(len(mids)):
+            mid=mids[i]
+            scatters[i+1]._offsets3d = ([dx[mid]],[dy[mid]],[dz[mid]])
+        title.set_text(r'Gradient Flow, $t={}$'.format(num*K))
 
-    # Setting the axes properties
-    ax.set_xlim3d([-2, 2])
-    ax.set_xlabel('X')
 
-    ax.set_ylim3d([-2, 2])
-    ax.set_ylabel('Y')
+    ani = animation.FuncAnimation(fig, update_graph, T,interval=1, blit=False)
 
-    ax.set_zlim3d([-2, 2])
-    ax.set_zlabel('Z')
-
-    ax.set_title(title)
-
-    # Provide starting angle for the view.
-    ax.view_init(25, 10)
-
-    ani = animation.FuncAnimation(fig, update3D, iterations, fargs=(data, mids,scatters),
-                                       interval=50, blit=False, repeat=True)
 
     if save:
-        Writer = animation.writers['ffmpeg']
-        writer = Writer(fps=30, metadata=dict(artist='Me'), bitrate=1800, extra_args=['-vcodec', 'libx264'])
-        ani.save(title+'.mp4', writer=writer)
 
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=fps, metadata=dict(artist='Me'), bitrate=1800, extra_args=['-vcodec', 'libx264'])
+        ani.save(name+'.mp4', writer=writer)
+
+    plt.show()
+
+
+
+
+
+def animate3DFlow_MultiView(framelist,mids,cids,name,v1=[9,73],
+    v2=[0,90],K=1,save=False,fps=30):
+    """
+    Animates a 3d animation of gradient flow
+    with 3 plots at different views 
+
+    Parameters
+    ----------
+    framelist : list of n x d arrays (frames)
+    mids : int list 
+    cids : int list
+    name : str 
+    v1  : float list of length 2 elev and azim of plot 1
+    v2  : float list of length 2 elev and azim of plot 2
+    K    : Scaling factor for title e.g. if one wishes to take
+           a frame list that consists of every K'th iterations
+    save : Boolean
+    fps  : int  
+    """
+
+    print("Animating ",len(framelist),"iterations")
+    Xt = np.concatenate(framelist,axis=0)
+    n_points = framelist[0].shape[0]
+    T=len(framelist)
+
+    t = np.array([np.ones(n_points)*i for i in range(T)]).flatten()
+    df = pd.DataFrame({"time": t ,"x" : Xt[:,0], "y" : Xt[:,1], "z" : Xt[:,2]})
+
+
+    fig = plt.figure(figsize=(14,6))
+
+    ax1 = fig.add_subplot(1,2,1, projection='3d')
+    ax2 = fig.add_subplot(1,2,2, projection='3d')
+    title = plt.suptitle(r'Gradient Flow')
+
+
+
+    data=df[df['time']==0]
+    dx=np.array(data.x)
+    dy=np.array(data.y)
+    dz=np.array(data.z)
+    scatters1 = []
+    scatters2 = []
+
+    scatters1.append(ax1.scatter(dx[cids], dy[cids], dz[cids],alpha=0.2))
+    scatters2.append(ax2.scatter(dx[cids], dy[cids], dz[cids],alpha=0.2))
+
+    for mid in mids:
+        scatters1.append(ax1.scatter([dx[mid]],[dy[mid]],[dz[mid]],marker='.',alpha =0.8))
+        scatters2.append(ax2.scatter([dx[mid]],[dy[mid]],[dz[mid]],marker='.',alpha =0.8))
+
+    ax1.view_init(elev=v1[0],azim=v1[1])
+    ax2.view_init(elev=v2[0],azim=v2[1])
+
+
+
+    def update_graph(num):
+        data=df[df['time']==num]
+        dx=np.array(data.x)
+        dy=np.array(data.y)
+        dz=np.array(data.z)
+        scatters1[0]._offsets3d = (dx[cids], dy[cids], dz[cids])
+        scatters2[0]._offsets3d = (dx[cids], dy[cids], dz[cids])
+
+        for i in range(len(mids)):
+            mid=mids[i]
+            scatters1[i+1]._offsets3d = ([dx[mid]],[dy[mid]],[dz[mid]])
+            scatters2[i+1]._offsets3d = ([dx[mid]],[dy[mid]],[dz[mid]])
+    
+        title.set_text(r'Gradient Flow, $t={}$'.format(num*K))
+
+
+    ani = animation.FuncAnimation(fig, update_graph, T,interval=1, blit=False)
+
+
+    if save:
+
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=fps, metadata=dict(artist='Me'), bitrate=1800, extra_args=['-vcodec', 'libx264'])
+        ani.save(name+'.mp4', writer=writer)
+    plt.tight_layout()
     plt.show()
