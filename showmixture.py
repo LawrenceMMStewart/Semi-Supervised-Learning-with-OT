@@ -1,8 +1,8 @@
 
 """
-File: showflow
+File: showmixture
 Description: This file calls the animation functions found in utils to examine the
-                gradient flows of two different initialisations of missing data.
+                gradient flows of two gaussians
 
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
 License: Mit License 
@@ -30,15 +30,12 @@ path = os.path.join("./variables",args.foldername,args.filename)
 
 with open(path,'rb') as f:
 
-    history,data,mids,cids= pickle.load(f)
+    history= pickle.load(f)
 K=100
-framelist = history[0][::K]
-framelist2 = history[1][::K]
-
+framelist = history[0][0][::K]
 
 
 time = 10 #time in seconds
 fps = max(len(framelist) // time ,1) #calculate fps required for a 10 second video 
-save = True
-animate3DFlow_MultiView(framelist, mids, cids, "standard", K = K, save = save , fps = fps , show = False)
-animate3DFlow_MultiView(framelist2, mids, cids, "mixture", K = K, save = save , fps = fps , show = False)
+
+animate3DFlow_Clusters(framelist, "standard", K = K, save = False , fps = fps , show = True)
