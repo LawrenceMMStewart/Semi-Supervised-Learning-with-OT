@@ -35,7 +35,7 @@ K=100
 framelist = history[0][0][::K]
 
 
-time = 10 #time in seconds
+time = 15 #time in seconds
 fps = max(len(framelist) // time ,1) #calculate fps required for a 10 second video 
 
-animate3DFlow_Clusters(framelist, "standard", K = K, save = False , fps = fps , show = True)
+animate3DFlow_Clusters(framelist, args.filename, K = K, save = False , fps = fps , show = True)

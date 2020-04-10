@@ -39,6 +39,6 @@ framelist2 = history[1][::K]
 
 time = 10 #time in seconds
 fps = max(len(framelist) // time ,1) #calculate fps required for a 10 second video 
-save = True
-animate3DFlow_MultiView(framelist, mids, cids, "standard", K = K, save = save , fps = fps , show = False)
-animate3DFlow_MultiView(framelist2, mids, cids, "mixture", K = K, save = save , fps = fps , show = False)
+save = False
+animate3DFlow_MultiView(framelist, mids, cids, "standard", K = K, save = save , fps = fps , show = True)
+animate3DFlow_MultiView(framelist2, mids, cids, "mixture", K = K, save = save , fps = fps , show = True)
