@@ -200,12 +200,12 @@ class MissingData():
         labels  : (if existing) array (n x p)
         """
 
-        if self.labels.any() != None:
-            self.obs_data, self.mask, self.labels = shuffle(self.obs_data,self.mask,self.labels)
-            return self.obs_data, self.mask, self.labels
-        else:
+        if self.labels is None:        
             self.obs_data, self.mask = shuffle(self.obs_data,self.mask)
             return self.obs_data, self.mask
+        else:
+            self.obs_data, self.mask, self.labels = shuffle(self.obs_data,self.mask,self.labels)
+            return self.obs_data, self.mask, self.labels
 
 
     def Generate_ids(self):
