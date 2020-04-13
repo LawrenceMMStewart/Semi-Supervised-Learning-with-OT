@@ -29,7 +29,7 @@ noisy_scurve,_ = datasets.make_s_curve(n_samples=n_samples)
 noisy_scurve=np.delete(noisy_scurve,1,1)
 
 #choose a dataset
-choice = noisy_moons
+choice = noisy_circles
 
 #concatenate dataset 2x to see if we can retrieve missing values
 data=np.concatenate((choice,choice)).astype(np.float32)
@@ -41,11 +41,12 @@ obs_data, mask = mframe.missing_secondhalf2D()
 
 print("percentage of datapoints with missing values ",mframe.percentage_missing(),"%")
 print("percentage of empty points ",mframe.percentage_empty(),"%")
-mids,cids = mframe.Generate_Labels()
+mids,cids = mframe.Generate_ids()
 
 
 #replace nans by means + noise 
 X=mframe.Initialise_Nans(eta=0.1)
+X_start=np.copy(X)
 
 opt=tf.compat.v1.train.RMSPropOptimizer(learning_rate=.01)
 # opt=tf.compat.v1.train.GradientDescentOptimizer(learning_rate=.01)
@@ -74,12 +75,14 @@ imputed_data = np.nan_to_num(obs_data*mask)+predicted_data*(1-mask)
 
 
 fig, axes = plt.subplots(1,2)
-axes[0].scatter(data[:n_samples,0],data[:n_samples,1],alpha=0.8,marker='.')
-axes[0].set_title("ground truth")
-axes[1].scatter(obs_data[cids,0],obs_data[cids,1],alpha=0.7,label="observable",marker='.')
+axes[0].scatter(X_start[cids,0],X_start[cids,1],alpha=0.8,marker='.',label ="observable")
+axes[0].scatter(X_start[mids,0],X_start[mids,1],alpha=0.8,marker='.',color="g",label ="imputed")
+axes[0].legend()
+axes[0].set_title("initialisation")
+axes[1].scatter(obs_data[cids,0],obs_data[cids,1],alpha=0.,label="observable",marker='.')
 axes[1].scatter(imputed_data[mids,0],imputed_data[mids,1],alpha=0.7,label="imputed",color="g",marker='.')
 axes[1].legend()
-axes[1].set_title("imputation")
+axes[1].set_title("sinkhorn imputation")
 plt.show()
 
 

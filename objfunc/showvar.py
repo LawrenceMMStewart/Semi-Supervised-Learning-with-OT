@@ -2,7 +2,7 @@
 """
 File: showmixture
 Description: This file calls the animation functions found in utils to examine the
-                gradient flows of two gaussians
+                gradient flows of 3 gaussians, one with higher variance
 
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
 License: Mit License 
@@ -38,4 +38,10 @@ framelist = history[0][0][::K]
 time = 15 #time in seconds
 fps = max(len(framelist) // time ,1) #calculate fps required for a 10 second video 
 
-animate3DFlow_dualgauss(framelist, args.filename, ,clusterids,K = K, save = False , fps = fps , show = True)
+
+c1 = [i for i in range(500)]
+c2 = [i for i in range(500,1000)]
+c3 = [i for i in range(1000,1500)]
+
+clusterids=[c1,c2,c3]
+animate3DFlow_Mixture(framelist, args.filename, clusterids, K = K, save = True , fps = fps , show = True)

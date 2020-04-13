@@ -50,7 +50,7 @@ print("percentage of datapoints with missing values ",mframe.percentage_missing(
 print("percentage of empty points ",mframe.percentage_empty(),"%")
 per = mframe.percentage_missing()
 #mids = positions of points that have missing values, cids = positions of points that are complete
-mids,cids = mframe.Generate_Labels()
+mids,cids = mframe.Generate_ids()
 
 
 l2reg=1e-4

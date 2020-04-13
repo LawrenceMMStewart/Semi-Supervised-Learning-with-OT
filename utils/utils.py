@@ -88,7 +88,7 @@ class MissingData():
     Class that allows creation of masks and missing data
     via a variety of functions documented below.
     """
-    def __init__(self,data,arr_type='float32'):
+    def __init__(self,data,labels=None,arr_type='float32'):
         """
         Initialises the data class and its params.
 
@@ -107,7 +107,7 @@ class MissingData():
         self.arr_type = arr_type
         #data
         self.data = data.astype(arr_type)
-
+        self.labels = labels
 
 
     def MCAR_Mask(self,prob):
@@ -197,12 +197,18 @@ class MissingData():
         --------
         obs_data : array (n x p)
         mask : array (n x p) with elements in {0,1}
+        labels  : (if existing) array (n x p)
         """
-        self.obs_data, self.mask = shuffle(self.obs_data,self.mask)
-        return self.obs_data, self.mask
+
+        if self.labels.any() != None:
+            self.obs_data, self.mask, self.labels = shuffle(self.obs_data,self.mask,self.labels)
+            return self.obs_data, self.mask, self.labels
+        else:
+            self.obs_data, self.mask = shuffle(self.obs_data,self.mask)
+            return self.obs_data, self.mask
 
 
-    def Generate_Labels(self):
+    def Generate_ids(self):
         """
         Returns two lists, the first consisting of the indicies
         of the data points who are missing values, and the second

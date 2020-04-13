@@ -29,6 +29,7 @@ class NoisyTorus():
 		"""
 		assert R1 >r1 , "if R1 is not greater than r1, a non classical torus will be generated"
 		assert R2 >r2 , "if R2 is not greater than r2, a non classical torus will be generated"
+		assert (R1 >R2) , "please enter parameters for largest torus first"
 
 		self.R1 = R1
 		self.R2 = R2
@@ -90,13 +91,13 @@ class NoisyTorus():
 		"""
 		fig = plt.figure()
 		ax1 = fig.add_subplot(121, projection='3d')
-		# ax1.set_zlim(-R,R)
+		ax1.set_zlim(-self.R1,self.R1)
 	
 		ax1.scatter(self.T1[:,0], self.T1[:,1], self.T1[:,2], color='b',alpha = 0.6)
 		ax1.scatter(self.T2[:,0], self.T2[:,1], self.T2[:,2], color='g',alpha = 0.6)
 		ax1.view_init(23, 27)
 		ax2 = fig.add_subplot(122, projection='3d')
-		# ax2.set_zlim(-R,R)
+		ax2.set_zlim(-self.R1,self.R1)
 		ax2.scatter(self.T1[:,0], self.T1[:,1], self.T1[:,2], color='b',alpha = 0.6)
 		ax2.scatter(self.T2[:,0], self.T2[:,1], self.T2[:,2], color='g',alpha = 0.6)
 		ax2.view_init(90, 10)
@@ -105,14 +106,13 @@ class NoisyTorus():
 
 
 
-test =NoisyTorus(30,10,0.3,0.3,25,25,0.3)
-test.show()
+
+#example:
+if __name__=="__main__":
+		
+	test =NoisyTorus(30,10,0.3,0.3,25,25,1)
+	test.show()
 
 
-# R, r = 5, 0.1
-# var=0.2
-# n2=20
-# x,y,z= noisy_torus(R,r,n2,var)
-# x2,y2,z2 = noisy_torus(10,0.5,n2,var)
 
 

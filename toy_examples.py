@@ -17,6 +17,7 @@ from utils.sinkhorn import *
 import tensorflow as tf
 from tqdm import tqdm
 import pickle 
+
 np.random.seed(123)
 
 parser = argparse.ArgumentParser(description = "Sinkhorn Batch Imputation for toy datasets")
@@ -37,9 +38,9 @@ noisy_scurve,_ = datasets.make_s_curve(n_samples=n_samples)
 noisy_scurve = np.delete(noisy_scurve,1,1)
 
 #select dataset to run on
-if args.dataset == "cicles":
+if args.dataset == "circles":
 	data = noisy_circles
-elif args.dataset == " scurve":
+elif args.dataset == "scurve":
 	data = noisy_scurve
 else:
 	data = noisy_moons
@@ -60,7 +61,7 @@ print("percentage of datapoints with missing values ",mframe.percentage_missing(
 print("percentage of empty points ",mframe.percentage_empty(),"%")
 per = mframe.percentage_missing()
 #mids = positions of points that have missing values, cids = positions of points that are complete
-mids,cids = mframe.Generate_Labels()
+mids,cids = mframe.Generate_ids()
 
 
 #batchsize
@@ -86,8 +87,8 @@ for t in tqdm(range(epochs),desc = "Epoch"):
 	kl_indicies = np.random.choice(indicies,batch_size,replace=True)
 	Xkl = tf.Variable(X[kl_indicies])
 	msk = mask[kl_indicies] #mask of Xkl
-	loss_fun = lambda: sinkhorn_sq_batch(Xkl,p=2,niter=10,div=True,
-		epsilon=args.epsilon,exponent=args.exponent) 
+	loss_fun = lambda: sinkhorn_sq_batch(Xkl,p=args.exponent,niter=10,div=True,
+		epsilon=args.epsilon) 
 
 	#compute gradient
 	grads_and_vars = opt.compute_gradients(loss_fun)
