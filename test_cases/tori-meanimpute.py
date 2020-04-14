@@ -24,7 +24,6 @@ np.random.seed(123)
 parser = argparse.ArgumentParser(description = "Sinkhorn Batch Imputation for 3D Dataset")
 parser.add_argument("batch_size",help = "|Xkl|",type = int) 
 parser.add_argument("epochs",help = "Epochs of round robin imputations", type = int)
-# parser.add_argument("prob_missing",help="Probability of a point being missing",type=float)
 parser.parse_args()
 args = parser.parse_args()
 
@@ -47,29 +46,22 @@ val_data = Val.data
 val_labels = Val.labels
 
 l2reg=1e-4
-
-gpu_list = get_available_gpus()
-for gpu in gpu_list:
-	print("Detected GPU: ", gpu )
 	
 #ids for the points
 ids = [i for i in range(len(data))]
-losses = []
+
 
 #print loss every 5% 
 do_print = args.epochs*10 // 100
 
-
-
-probs =[0.3,0.0]
-# probs = [0,0.002,0.004,0.006,0.008,0.010,0.012,0.014,0.016,0.018,0.02]
 performance = []
 amount_missing = []
 
 
+def train_validate(p,data,labels):
 
-for p in probs:
-
+	losses = []
+	tf.keras.backend.clear_session()
 	model = tf.keras.Sequential([
 		keras.layers.Dense(20,activation = 'relu', input_shape = (3,), 
 			kernel_regularizer =tf.keras.regularizers.l2(l2reg)),
@@ -77,7 +69,6 @@ for p in probs:
 		keras.layers.Dense(1, activation = 'sigmoid')
 		])
 
-	tf.keras.backend.clear_session()
 	opt = tf.keras.optimizers.Adam()
 	bce = tf.keras.losses.BinaryCrossentropy()
 
@@ -88,8 +79,8 @@ for p in probs:
 	# create the observable dataset and mask:
 	mframe.MCAR_Mask(p) #0.04 
 
-	#shuffle observable data and mask
-	obs_data, mask,labels = mframe.Shuffle()
+	# #shuffle observable data and mask
+	# obs_data, mask,labels = mframe.Shuffle()
 
 	print("percentage of datapoints with missing values ",mframe.percentage_missing(),"%")
 	print("percentage of empty points ",mframe.percentage_empty(),"%")
@@ -102,6 +93,7 @@ for p in probs:
 
 	#initialise the unobservable values
 	X_start = mframe.Initialise_Nans()
+
 
 	for i in tqdm(range(args.epochs)):
 		
@@ -123,8 +115,7 @@ for p in probs:
 			tqdm.write("Loss = %.5f"%loss)
 
 
-
-
+	# test on validation set 
 	val_preds = model(val_data).numpy()
 
 	val_preds[val_preds>=0.5]=1
@@ -133,23 +124,30 @@ for p in probs:
 	performance.append(model_per)
 
 
-	print("Percentage accuracy on validation set = ",model_per)
+pvals = [0,0.01,0.05,0.1,0.2,0.3]
+for p in pvals:
+	train_validate(p,data,labels)
 
 
 
 plt.figure(figsize=(14,6))
 xaxes=np.arange(len(performance))
 rects = plt.bar(xaxes,performance,align='center',alpha=0.5,color='g')
-plt.xticks(xaxes,probs)
+plt.xticks(xaxes,pvals)
 plt.xlabel(r"$P(x_i = NAN)$")
-plt.ylabel("%% Validation Accuracy")
+plt.ylabel("% Validation Accuracy")
 plt.title(r"$(R_1,R_2) = (%i,%i)$, $(r_1,r_2)=(%i,%i)$, $(B,T) = (%i,%i)$"%(R1
 	,R2,r1,r2,args.batch_size,args.epochs))
 plt.grid("on")
 ax2 = plt.gca()
 
-labels = ["%.3f%%"%(i*100) for i in amount_missing]
-for rect, label in zip(rects, labels):
+#first obtain the percentage missing:
+per_missing = ["Missing = %.3f%% ;"%(i*100) for i in amount_missing]
+val_acc = ["Acc = %.2f"%i for i in performance]
+#create labels for boxes consisting of %missing followed by validation accuracy
+box_labels = [a+b for (a,b) in zip(per_missing,val_acc)]
+
+for rect, label in zip(rects, box_labels):
     height = rect.get_height()
     plt.text(rect.get_x() + rect.get_width() / 2, height + 0.5, label,
             ha='center', va='bottom')
