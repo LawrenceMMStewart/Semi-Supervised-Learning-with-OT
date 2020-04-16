@@ -21,12 +21,12 @@ import matplotlib.animation as animation
 import pandas as pd
 from utils.animate import *
 parser = argparse.ArgumentParser(description = "Plotting 3d variables")
-parser.add_argument("foldername", help = "folder name of variables",type = str)
 parser.add_argument("filename" , help = "File name .pickle", type = str)
 parser.parse_args()
 args = parser.parse_args()
 
-path = os.path.join("./variables",args.foldername,args.filename)
+foldername = "unbalanced"
+path = os.path.join("./variables",foldername,args.filename)
 
 with open(path,'rb') as f:
 
@@ -39,9 +39,10 @@ time = 15 #time in seconds
 fps = max(len(framelist) // time ,1) #calculate fps required for a 10 second video 
 
 
-c1 = [i for i in range(500)]
-c2 = [i for i in range(500,1000)]
-c3 = [i for i in range(1000,1500)]
+c1 = [i for i in range(350)]
+c2 = [i for i in range(350,700)]
+c3 = [i for i in range(700,1500)]
 
 clusterids=[c1,c2,c3]
-animate3DFlow_Mixture(framelist, args.filename, clusterids, K = K, save = True , fps = fps , show = True)
+animate3DFlow_Mixture(framelist, args.filename, clusterids,v1=[4,19] ,v2=[33,57],
+ K = K, save = True , fps = fps , show = True)

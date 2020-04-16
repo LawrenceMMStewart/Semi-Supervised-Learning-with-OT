@@ -41,3 +41,24 @@ def loadplt3D(Xinit,Ximp,mids,cids,name):
 
 	plt.show()
 
+
+def scatter3D(plotlist,title="Scatter",xl="x",yl="y"):
+	"""
+	plots each plot from plotlist as a 3D scatter
+
+	Parameters
+	----------
+	plotlist : list of length i with (n_i x 3) dimensional arrays
+	title : str
+	xl : str for xlabel
+	yl : str for ylabel 
+	"""
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	for data in plotlist:
+		ax.scatter(data[:,0],data[:,1],data[:,2],alpha=0.8,marker ='.')
+	ax.set_title(title)
+	ax.set_xlabel(xl)
+	ax.set_ylabel(yl)
+	plt.show()
