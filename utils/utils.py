@@ -9,8 +9,70 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.utils import shuffle
+import tensorflow_probability as tfp
 
 
+@tf.function 
+def sample_without_replacement(ids,batch_size):
+    """
+    Samples uniformly from a tensor of ids wihout replacement
+
+    Parameters
+    ----------
+    ids : tensor int
+    batch_size : int
+    dtype : tf.dtype
+
+    Output
+    --------
+    sample : tensor int 
+    """
+    probs=tf.ones(len(ids))/float(len(ids))
+    dist=tfp.distributions.Categorical(probs=probs)
+    return dist.sample((batch_size))
+
+
+
+
+
+@tf.function
+def check_gradients(gradlist,message="Error"):
+    """
+    If a Nan or Inf is detected in gradlist, the list
+    of gradients to check, the function will return 
+    the error message
+
+    Parameters
+    -----------
+    gradlist : list of tensors
+    message : str (error message)
+
+    Outputs
+    ---------
+    gradlist : list of tensors
+    """
+    gradlist = [tf.debugging.check_numerics(x,message) for x in gradlist]
+    return gradlist
+
+@tf.function
+def check_sinkhorndiv(sloss):
+    """
+    Asserts the sinkhorn divergance returns a value greater than or equal to 0 
+    in the case that this occurs (which may not signify convergance) the function
+    acts as the identity mapping.
+
+    Parameters
+    ----------
+    sloss : tensor
+
+    Output
+    ---------
+    sloss : tensor  
+    """
+    assert sloss.numpy() >0 , "Please use a higher niter for sinkhorn, value below 0 returned"
+    return sloss
+
+@tf.function
 def euclidean_dist(X,Y):
     """
     Returns table of pointwise Eucildean Distances
@@ -46,7 +108,7 @@ def euclidean_dist(X,Y):
     return tf.cast(tf.math.sqrt(X2+Y2-2.*X@tf.transpose(Y)),tf.float32)
 
 
-
+@tf.function
 def euclidean_sqdist(X,Y):
     """
     Returns table of pointwise Eucildean Distances
@@ -371,7 +433,7 @@ class MissingData():
 
 
 
-
+@tf.function
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'GPU']

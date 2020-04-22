@@ -78,7 +78,8 @@ def sinkhorn_cost_log(n,m,C,niter,epsilon=0.01):
     gamma_log = K_tild(u,v,n,m,C,epsilon)
     final_cost_log = tf.reduce_sum(gamma_log*C)
     return final_cost_log
-
+    
+@tf.function
 def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.01):
     """
     Returns the sinkhorn loss or divergance calculated 
@@ -111,7 +112,7 @@ def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.01):
         return sinkhorn_costXY
 
  
-
+@tf.function
 def sinkhorn_sq_batch(X,p=2,niter=10,div=True,epsilon=0.01):
     #split batch in half
     X1,X2 = tf.split(X,2)
