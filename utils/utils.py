@@ -21,16 +21,15 @@ def sample_without_replacement(ids,batch_size):
     ----------
     ids : tensor int
     batch_size : int
-    dtype : tf.dtype
 
     Output
     --------
-    sample : tensor int 
+    sample_ids : tensor int 
     """
-    probs=tf.ones(len(ids))/float(len(ids))
-    dist=tfp.distributions.Categorical(probs=probs)
-    return dist.sample((batch_size))
 
+    idx = tf.random.shuffle(tf.range(len(ids)))[:batch_size]
+    sample_ids = tf.gather(ids,idx,axis=0)
+    return sample_ids
 
 
 
@@ -54,23 +53,7 @@ def check_gradients(gradlist,message="Error"):
     gradlist = [tf.debugging.check_numerics(x,message) for x in gradlist]
     return gradlist
 
-@tf.function
-def check_sinkhorndiv(sloss):
-    """
-    Asserts the sinkhorn divergance returns a value greater than or equal to 0 
-    in the case that this occurs (which may not signify convergance) the function
-    acts as the identity mapping.
 
-    Parameters
-    ----------
-    sloss : tensor
-
-    Output
-    ---------
-    sloss : tensor  
-    """
-    assert sloss.numpy() >0 , "Please use a higher niter for sinkhorn, value below 0 returned"
-    return sloss
 
 @tf.function
 def euclidean_dist(X,Y):
