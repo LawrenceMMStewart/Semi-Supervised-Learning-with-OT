@@ -34,21 +34,34 @@ class ClassifyImpute():
         niter = 10,
         classifier_loss = tf.keras.losses.BinaryCrossentropy(),
         wass_reg = 1,
-        p=1, #ground cost power
+        p=1, 
         ):
         """
         Initialises the data class and its params.
 
         Parameters
         ----------
-        data : array n x p
+        init_data : tensor n x m
+        labels : tensor n x 1
+        mask  : binary tensor n x m
+        imputers : tf.model list
+        reg : float
+        optimiser : tf.optimizer
+        eps : float (sinkhorn parameter)
+        niter : int (sinkhorn number of iterations)
+        classifier_loss : tf.loss function
+        wass_reg : float for regularisation term
+        p : float (ground cost power)
+
+
+        Output
+        --------
+        Creates class of imputers and classifier
         """
-        # tf.keras.backend.clear_session()
+       
         self.n = init_data.shape[0]
         self.m = init_data.shape[1]
-        #binary data mask 
-        #type of arrays (for tensorflow compatabilities)
-        # self.arr_type = arr_type
+
         self.init_data = init_data
         self.mask = mask
         self.labels = labels
@@ -97,35 +110,36 @@ class ClassifyImpute():
 
 
 
-    @tf.function
-    def forward(self,batch,wbatch1,wbatch2):
-        """
-        Forward of learning batch + wasserstein distance of two batches
-        batch = tuple (data,labels)
-        """
 
-        #unpack labels for ERM batch and wasserstein batch
-        X,Y = batch
-        b1,b1_labels = wbatch1
-        b2,b2_labels = wbatch2 
 
-        #Predict and score ERM 
-        out = self.classifier(X)
-        er_loss = self.classifier_loss(out,Y)
+    #   _____                       _ _             
+    #  / ____|                     | (_)            
+    # | (___   __ _ _ __ ___  _ __ | |_ _ __   __ _ 
+    #  \___ \ / _` | '_ ` _ \| '_ \| | | '_ \ / _` |
+    #  ____) | (_| | | | | | | |_) | | | | | | (_| |
+    # |_____/ \__,_|_| |_| |_| .__/|_|_|_| |_|\__, |
+    #                        | |               __/ |
+    #                        |_|              |___/ 
 
-        #wasserstein regularisation
-        wloss = sinkhorn(b1.shape[0],b2.shape[0],b1,b2,self.p,div=True,niter=self.niter,epsilon=self.eps)
 
-        #overall loss = er_loss + wreg*wloss
-        loss = er_loss + self.wass_reg*wloss
 
-        return loss 
 
     @tf.function 
     def getbatch_label(self,batch_size,X,Y,label):
         """
-        returns a sample from data X which has label Y equal
-        to that of the label parameter
+        samples a batch of size_batch size from data (X,Y)
+        conditioning on the value of label
+
+        Parameters
+        ----------
+        batch_size : int
+        X : tensor n x m
+        Y : tensor n x 1
+        label : int
+
+        Output
+        ---------
+        tuple : (tensor : batch_size x m , tensor: batch_size, 1)
         """
         yids = tf.where(Y==label)[:,0]
         sample_ids = sample_without_replacement(yids,batch_size)
@@ -136,10 +150,23 @@ class ClassifyImpute():
     @tf.function
     def getbatch_label_MC(self,batch_size,X,Y,label,j,missing=True):
         """
-        returns a batch from the dataset where the batch is conditioned
-        on the label and the fact the data is fully missing or complete 
-        (controlled by missing boolean) on dimension j
+        samples a batch of size batch_size from data (X,Y)
+        conditioning on the value of label and conditioning on
+        whether the data should be missing or complete (controlled
+        by the missing boolean parameter) on dimension j.
 
+        Parameters
+        ----------
+        batch_size : int
+        X : tensor n x m
+        Y : tensor n x 1
+        label : int
+        j : int in range 0,m-1
+        missing : boolean
+
+        Output
+        ---------
+        tuple : (tensor : batch_size x m , tensor: batch_size, 1)
         """
         assert j< self.m ; "Please enter a j value between 0 and d-1"
         
@@ -161,32 +188,6 @@ class ClassifyImpute():
         batchY = tf.gather(Y,sample_ids,axis=0)
         return (batchX,batchY)
       
-
-    # @tf.function
-    # def getbatch_label_missing(self,batch_size,label,j,X,Y,replace = True):
-    #     """
-    #     returns a sample from data X which has label Y equal to that of 
-    #     label parameter, with all data points being complete
-    #     i.e. no missing data 
-
-    #     """
-    #     assert j< self.m ; "Please enter a j value between 0 and d-1"
-        
-    #     #indicies where mask is missing on dimension j 
-    #     jids = tf.where(self.mask[:,j] == 0)[:,0]
-    #     #indicies where y=label
-    #     yids = tf.where(Y==label)[:,0]
-        
-  
-    #     # to calculate the intersection of jids and yids we use a set 
-    #     tset = tf.sets.intersection(jids[None,:], yids[None, :])
-    #     ids = tset.values
-    #     #sample points from the possible ids
-    #     sample_ids = sample_without_replacement(ids,batch_size)
-    #     batchX = tf.gather(X,sample_ids,axis=0)
-    #     batchY = tf.gather(Y,sample_ids,axis=0)
-    #     return (batchX,batchY)
-
 
     def Generate_ids(self):
         """
@@ -217,12 +218,15 @@ class ClassifyImpute():
 
     def Generate_label_ids(self):
         """
-        Returns 4 lists mids0,mids1,cids0,cids1
-        mids0 =  missing ids with label 0
-        mids1 =  missing ids with label 1 
-        cids0 = complete ids with label 0 
-        cids1 = complete ids with label 1
+        Generates ids for missing and complete points
+        conditioned on labels (used for plotting)
 
+        Outputs
+        --------
+        mids0 : list of ids of missing points with label equal to 0
+        mids1 : list of ids of missing points with label equal to 1
+        cids0 : list of ids of complete points with label equal to 0
+        cids1 : list of ids of complete points with label equal to 1
         """
         
         label0 = np.where(self.labels==0)[0]
@@ -237,6 +241,21 @@ class ClassifyImpute():
         cids1 = np.intersect1d(self.cids,label1)
 
         return mids0,mids1,cids0,cids1
+
+
+
+
+    #  _______        _       _             
+    # |__   __|      (_)     (_)            
+    #    | |_ __ __ _ _ _ __  _ _ __   __ _ 
+    #    | | '__/ _` | | '_ \| | '_ \ / _` |
+    #    | | | | (_| | | | | | | | | | (_| |
+    #    |_|_|  \__,_|_|_| |_|_|_| |_|\__, |
+    #                                  __/ |
+    #                                 |___/ 
+
+
+
 
     @tf.function
     def impute(self,j,X):
@@ -267,8 +286,6 @@ class ClassifyImpute():
         return X_hat
 
 
-# if error in future with tf.debugging.assert see tf.docs as there is an example 
-#how they implement for graphs
 
    
     # def train_imputer(self,j,X,Y,batch_size,epochs=1,disable_bar=False):
@@ -316,6 +333,29 @@ class ClassifyImpute():
     #         # self.gradhist.append(gradients)
         
 
+    @tf.function
+    def forward(self,batch,wbatch1,wbatch2):
+        """
+        Forward of learning batch + wasserstein distance of two batches
+        batch = tuple (data,labels)
+        """
+
+        #unpack labels for ERM batch and wasserstein batch
+        X,Y = batch
+        b1,b1_labels = wbatch1
+        b2,b2_labels = wbatch2 
+
+        #Predict and score ERM 
+        out = self.classifier(X)
+        er_loss = self.classifier_loss(out,Y)
+
+        #wasserstein regularisation
+        wloss = sinkhorn(b1.shape[0],b2.shape[0],b1,b2,self.p,div=True,niter=self.niter,epsilon=self.eps)
+
+        #overall loss = er_loss + wreg*wloss
+        loss = er_loss + self.wass_reg*wloss
+
+        return loss 
 
 
 
