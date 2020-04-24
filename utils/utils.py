@@ -27,10 +27,12 @@ def sample_without_replacement(ids,batch_size):
     sample_ids : tensor int 
     """
 
-    idx = tf.random.shuffle(tf.range(len(ids)))[:batch_size]
+    # idx = tf.random.shuffle(tf.range(len(ids)))[:batch_size]
+    # sample_ids = tf.gather(ids,idx,axis=0)
+    # return sample_ids
+    idx = tf.random.uniform((batch_size,),0,len(ids),dtype=tf.dtypes.int32)
     sample_ids = tf.gather(ids,idx,axis=0)
     return sample_ids
-
 
 
 

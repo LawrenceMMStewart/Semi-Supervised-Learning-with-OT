@@ -42,7 +42,8 @@ def loadplt3D(Xinit,Ximp,mids,cids,name):
 	plt.show()
 
 
-def scatter3D(plotlist,title="Scatter",xl="x",yl="y"):
+def scatter3D(plotlist,title="Scatter",xl="x",yl="y",
+	colorlist=None,markerlist=None,alphalist=None):
 	"""
 	plots each plot from plotlist as a 3D scatter
 
@@ -54,11 +55,28 @@ def scatter3D(plotlist,title="Scatter",xl="x",yl="y"):
 	yl : str for ylabel 
 	"""
 
-	fig = plt.figure()
-	ax = fig.add_subplot(111, projection='3d')
-	for data in plotlist:
-		ax.scatter(data[:,0],data[:,1],data[:,2],alpha=0.8,marker ='.')
-	ax.set_title(title)
-	ax.set_xlabel(xl)
-	ax.set_ylabel(yl)
-	plt.show()
+	if (colorlist is None) and (markerlist is None) and (alphalist is None):
+		fig = plt.figure()
+		ax = fig.add_subplot(111, projection='3d')
+		for data in plotlist:
+			ax.scatter(data[:,0],data[:,1],data[:,2],alpha=0.8,marker ='.')
+		ax.set_title(title)
+		ax.set_xlabel(xl)
+		ax.set_ylabel(yl)
+		plt.show()
+
+	else:
+		assert len(colorlist)==len(plotlist), "please input the correct size list of colors"
+		assert len(markerlist)==len(plotlist), "please input the correct size list of markers"
+		assert len(alphalist)==len(plotlist), "please input the correct size list of alphas"
+
+
+		fig = plt.figure()
+		ax = fig.add_subplot(111, projection='3d')
+		for i in range(len(plotlist)):
+			data,c,m,alpha = (plotlist[i],colorlist[i],markerlist[i],alphalist[i])
+			ax.scatter(data[:,0],data[:,1],data[:,2],alpha=alpha,marker=m,color=c)
+		ax.set_title(title)
+		ax.set_xlabel(xl)
+		ax.set_ylabel(yl)
+		plt.show()

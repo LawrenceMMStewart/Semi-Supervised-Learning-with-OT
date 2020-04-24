@@ -25,10 +25,9 @@ class ClassifyImpute():
     training of classifier and imputers in parallel
 
     """
-
     def __init__(self,init_data,labels,mask,imputers=None,
         classifier = None,
-        arr_type="float32",
+        # arr_type="float32",
         reg = 1e-4,
         optimiser =tf.keras.optimizers.Adam(),
         eps=0.01,
@@ -49,9 +48,9 @@ class ClassifyImpute():
         self.m = init_data.shape[1]
         #binary data mask 
         #type of arrays (for tensorflow compatabilities)
-        self.arr_type = arr_type
-        self.init_data = init_data.astype(self.arr_type)
-        self.mask = mask.astype(self.arr_type)
+        # self.arr_type = arr_type
+        self.init_data = init_data
+        self.mask = mask
         self.labels = labels
         self.imputers = []
         self.classifier = []
@@ -122,78 +121,71 @@ class ClassifyImpute():
 
         return loss 
 
-    @tf.function
-    def getbatch_label(self,batch_size,label,X,Y):
+    @tf.function 
+    def getbatch_label(self,batch_size,X,Y,label):
         """
         returns a sample from data X which has label Y equal
         to that of the label parameter
         """
         yids = tf.where(Y==label)[:,0]
         sample_ids = sample_without_replacement(yids,batch_size)
-        sample_ids = tf.reshape(sample_ids,[-1])
         batchX = tf.gather(X,sample_ids,axis=0)
         batchY = tf.gather(Y,sample_ids,axis=0)
         return (batchX,batchY)
 
     @tf.function
-    def getbatch_label_complete(self,batch_size,label,j,X,Y):
+    def getbatch_label_MC(self,batch_size,X,Y,label,j,missing=True):
         """
-        returns a sample from data X which has label Y equal to that of 
-        label parameter, with all data points being complete
-        i.e. no missing data 
+        returns a batch from the dataset where the batch is conditioned
+        on the label and the fact the data is fully missing or complete 
+        (controlled by missing boolean) on dimension j
 
         """
-
         assert j< self.m ; "Please enter a j value between 0 and d-1"
         
-        #indicies of points on that are complete on dimension j
-        
-        present_j = tf.where(self.mask[:,j] == 1)[:,0]
-
-        #indicies where y = j 
+        if missing:
+            #indicies where mask is missing on dimension j 
+            jids = tf.where(self.mask[:,j] == 0)[:,0]
+        if not missing:
+            jids = tf.where(self.mask[:,j] == 1)[:,0]
+        #indicies where y=label
         yids = tf.where(Y==label)[:,0]
         
   
-        #create a set to calculate internsection 
-        tset = tf.sets.intersection(ids[None,:], yids[None, :])
+        # to calculate the intersection of jids and yids we use a set 
+        tset = tf.sets.intersection(jids[None,:], yids[None, :])
         ids = tset.values
-       #sample of points having no missing value on dim j && label = j
+        #sample points from the possible ids
         sample_ids = sample_without_replacement(ids,batch_size)
-        sample_ids = tf.reshape(sample_ids,[-1])
-        #return batch
         batchX = tf.gather(X,sample_ids,axis=0)
         batchY = tf.gather(Y,sample_ids,axis=0)
         return (batchX,batchY)
+      
 
-    @tf.function
-    def getbatch_label_missing(self,batch_size,label,j,X,Y,replace = True):
-        """
-        returns a sample from data X which has label Y equal to that of 
-        label parameter, with all data points being complete
-        i.e. no missing data 
+    # @tf.function
+    # def getbatch_label_missing(self,batch_size,label,j,X,Y,replace = True):
+    #     """
+    #     returns a sample from data X which has label Y equal to that of 
+    #     label parameter, with all data points being complete
+    #     i.e. no missing data 
 
-        """
-
-       assert j< self.m ; "Please enter a j value between 0 and d-1"
+    #     """
+    #     assert j< self.m ; "Please enter a j value between 0 and d-1"
         
-        #indicies of points on that are complete on dimension j
-        
-        present_j = tf.where(self.mask[:,j] == 1)[:,0]
-
-        #indicies where y = j 
-        yids = tf.where(Y==label)[:,0]
+    #     #indicies where mask is missing on dimension j 
+    #     jids = tf.where(self.mask[:,j] == 0)[:,0]
+    #     #indicies where y=label
+    #     yids = tf.where(Y==label)[:,0]
         
   
-        #create a set to calculate internsection 
-        tset = tf.sets.intersection(ids[None,:], yids[None, :])
-        ids = tset.values
-       #sample of points having no missing value on dim j && label = j
-        sample_ids = sample_without_replacement(ids,batch_size)
-        sample_ids = tf.reshape(sample_ids,[-1])
-        #return batch
-        batchX = tf.gather(X,sample_ids,axis=0)
-        batchY = tf.gather(Y,sample_ids,axis=0)
-        return (batchX,batchY)
+    #     # to calculate the intersection of jids and yids we use a set 
+    #     tset = tf.sets.intersection(jids[None,:], yids[None, :])
+    #     ids = tset.values
+    #     #sample points from the possible ids
+    #     sample_ids = sample_without_replacement(ids,batch_size)
+    #     batchX = tf.gather(X,sample_ids,axis=0)
+    #     batchY = tf.gather(Y,sample_ids,axis=0)
+    #     return (batchX,batchY)
 
 
     def Generate_ids(self):
@@ -233,8 +225,8 @@ class ClassifyImpute():
 
         """
         
-        label1 = np.where(self.labels==0)[0]
-        label0 = np.where(self.labels==1)[0]
+        label0 = np.where(self.labels==0)[0]
+        label1 = np.where(self.labels==1)[0]
 
         #create mids0 and mids1 
         mids0 = np.intersect1d(self.mids,label0)
@@ -252,8 +244,17 @@ class ClassifyImpute():
         Impute dimension j of X  
         """
         #create a mask for dimension j (all other values are considered observable)
-        maskj = np.ones(self.mask.shape)
-        maskj[:,j] = self.mask[:,j]
+        #and call this mask maskj
+        masklist = []
+        for i in range(self.m):
+            if i==j:
+                masklist.append(tf.gather(self.mask,1,axis=1))
+            else:
+                masklist.append(tf.ones(self.n))
+
+        
+        maskj =tf.stack(masklist,axis=1)
+
 
         #indicies of dimensions that are not j
         notj = tf.constant([i for i in range(self.m) if i!=j])
@@ -266,50 +267,53 @@ class ClassifyImpute():
         return X_hat
 
 
+# if error in future with tf.debugging.assert see tf.docs as there is an example 
+#how they implement for graphs
 
+   
+    # def train_imputer(self,j,X,Y,batch_size,epochs=1,disable_bar=False):
+    #     """
+    #     Train imputer j for niter iterations 
+    #     """
+    #     if epochs==1:
+    #         disable_bar=True
+    #     for i in tqdm(range(epochs),desc = "Imputer %i"%j,disable = disable_bar):
+    #         #train on first label y=0
+    #         with tf.GradientTape() as tape:
+    #             Xhat = self.impute(j,X)
+    #             #batch of complete values
+    #             bc,_ = self.getbatch_label_complete(batch_size,0,j,Xhat,Y)
+    #             bm,_ = self.getbatch_label_missing(batch_size,0,j,Xhat,Y)
+    #             #run sinkhorn on the batches
+    #             loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,div=True,niter=self.niter,epsilon=self.eps)
 
-    @tf.function
-    def train_imputer(self,j,X,Y,batch_size,epochs=1,replace=False,disable_bar=False):
-        """
-        Train imputer j for niter iterations 
-        """
-        if epochs==1:
-            disable_bar=True
-        for i in tqdm(range(epochs),desc = "Imputer %i"%j,disable = disable_bar):
-            #train on first label y=0
-            with tf.GradientTape() as tape:
-                Xhat = self.impute(j,X)
-                #batch of complete values
-                bc,_ = self.getbatch_label_complete(batch_size,0,j,Xhat,Y,replace=replace)
-                bm,_ = self.getbatch_label_missing(batch_size,0,j,Xhat,Y,replace=replace)
-                #run sinkhorn on the batches
-                loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,div=True,niter=self.niter,epsilon=self.eps)
-                loss = check_sinkhorndiv(loss)
-                self.losshist.append(loss.numpy())
-            #perform gradient step on NN for dim j 
-            gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
-            gradients = check_gradients(gradients)
-            self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
+    #             # self.losshist.append(loss.numpy())
+    #         #perform gradient step on NN for dim j 
 
-            self.gradhist.append(gradients)
+    #         # tf.debugging.Assert(loss>0,[loss])
+    #         gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
+    #         gradients = check_gradients(gradients)
+    #         self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
 
-            #train on second label y=1
-            with tf.GradientTape() as tape:
-                Xhat = self.impute(j,X)
-                #batch of complete values
-                bc,_ = self.getbatch_label_complete(batch_size,1,j,Xhat,Y,replace=replace)
-                bm,_ = self.getbatch_label_missing(batch_size,1,j,Xhat,Y,replace=replace)
-                #run sinkhorn on the batches
-                loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,div=True,niter=self.niter,epsilon=self.eps)
-                loss = check_sinkhorndiv(loss)
-                self.losshist.append(loss.numpy())
+    #         # self.gradhist.append(gradients)
 
-            #perform gradient step on NN for dim j 
-            gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
-            gradients = check_gradients(gradients)
-            self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
+    #         #train on second label y=1
+    #         with tf.GradientTape() as tape:
+    #             Xhat = self.impute(j,X)
+    #             #batch of complete values
+    #             bc,_ = self.getbatch_label_complete(batch_size,1,j,Xhat,Y)
+    #             bm,_ = self.getbatch_label_missing(batch_size,1,j,Xhat,Y)
+    #             #run sinkhorn on the batches
+    #             loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,div=True,niter=self.niter,epsilon=self.eps)
+    #             # self.losshist.append(loss.numpy())
 
-            self.gradhist.append(gradients)
+    #         # tf.debugging.Assert(loss>0,[loss])
+    #         #perform gradient step on NN for dim j 
+    #         gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
+    #         gradients = check_gradients(gradients)
+    #         self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
+
+    #         # self.gradhist.append(gradients)
         
 
 

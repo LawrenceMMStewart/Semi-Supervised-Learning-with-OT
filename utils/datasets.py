@@ -85,7 +85,7 @@ class NoisyTorus():
 
 
 
-	def show(self):
+	def show(self,title=None):
 		"""
 		Creates a scatter plot of the tori
 		"""
@@ -102,6 +102,12 @@ class NoisyTorus():
 		ax2.scatter(self.T2[:,0], self.T2[:,1], self.T2[:,2], color='g',alpha = 0.6)
 		ax2.view_init(90, 10)
 		ax2.set_xticks([])
+
+		if title is None:
+			plt.suptitle(r"$(R_1,R_2) = (%.2f,%.2f)$, $(r_1,r_2) = (%.2f,%.2f)$, $\sigma^2 = %.2f$"%(self.R1,
+				self.R2,self.r1,self.r2,self.var))
+		else:
+			plt.suptitle(title)
 		plt.show()
 
 
