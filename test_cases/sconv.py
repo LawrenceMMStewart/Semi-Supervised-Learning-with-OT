@@ -54,7 +54,7 @@ bn=len(b1)
 plist = [0.4,0.5,0.6,0.7,0.8,0.9,1.0]
 nlist = [i*10 for i in range(1,15)]
 
-exp = True
+exp = False
 
 
 if exp:
@@ -69,7 +69,7 @@ if exp:
 		pickle.dump([losses],f)
 else:
 	file = open("test_cases/losses.pickle",'rb')
-	losses=pickle.load(file)
+	losses=pickle.load(file)[0]
 
 for i in range(len(losses)):
 	plt.plot(nlist,losses[i],label=r"$p=%.2f$"%plist[i],marker='.',alpha=0.7)
