@@ -54,7 +54,7 @@ bn=len(b1)
 plist = [0.4,0.5,0.6,0.7,0.8,0.9,1.0]
 nlist = [i*10 for i in range(1,15)]
 
-exp = False
+exp = True
 
 
 if exp:

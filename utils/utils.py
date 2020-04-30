@@ -26,10 +26,8 @@ def sample_without_replacement(ids,batch_size):
     --------
     sample_ids : tensor int 
     """
-
-    # idx = tf.random.shuffle(tf.range(len(ids)))[:batch_size]
-    # sample_ids = tf.gather(ids,idx,axis=0)
-    # return sample_ids
+    tf.debugging.Assert(len(ids)>0,[ids])
+    tf.debugging.Assert(tf.math.logical_not(ids==[]),[ids])
     idx = tf.random.uniform((batch_size,),0,len(ids),dtype=tf.dtypes.int32)
     sample_ids = tf.gather(ids,idx,axis=0)
     return sample_ids
@@ -422,3 +420,16 @@ class MissingData():
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'GPU']
+
+
+#predicates for datafiltering
+def YPred(x,y,m,lab):
+    return tf.math.equal(y[0],lab)
+
+def MaskPred(x,y,m,j,obs):
+    return tf.math.equal(m[j],obs)
+
+def CondPred(x,y,m,lab,j,obs):
+    cond1 = YPred(x,y,m,lab)
+    cond2 = MaskPred(x,y,m,j,obs)
+    return tf.logical_and(cond1,cond2)  

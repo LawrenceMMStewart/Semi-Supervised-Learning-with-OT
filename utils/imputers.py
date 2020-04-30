@@ -15,7 +15,7 @@ from utils.utils import *
 from utils.sinkhorn import *
 import tensorflow as tf
 from tqdm import tqdm
-from tensorflow import keras
+# from tensorflow import keras
 import pickle 
 
 
@@ -25,13 +25,13 @@ class ClassifyImpute():
     training of classifier and imputers in parallel
 
     """
-    def __init__(self,init_data,labels,mask,imputers=None,
+    def __init__(self,X0,labels,mask,imputers=None,
         classifier = None,
-        # arr_type="float32",
+        batch_size = 100,
         reg = 1e-4,
         optimiser =tf.keras.optimizers.Adam(),
         eps=0.01,
-        niter = 10,
+        niter = 100,
         classifier_loss = tf.keras.losses.BinaryCrossentropy(),
         wass_reg = 1,
         p=1, 
@@ -41,7 +41,7 @@ class ClassifyImpute():
 
         Parameters
         ----------
-        init_data : tensor n x m
+        X0 : tensor n x m
         labels : tensor n x 1
         mask  : binary tensor n x m
         imputers : tf.model list
@@ -59,10 +59,11 @@ class ClassifyImpute():
         Creates class of imputers and classifier
         """
        
-        self.n = init_data.shape[0]
-        self.m = init_data.shape[1]
+        self.n = X0.shape[0]
+        self.m = X0.shape[1]
 
-        self.init_data = init_data
+        self.X0 = X0
+        self.Xt = tf.identity(X0)
         self.mask = mask
         self.labels = labels
         self.imputers = []
@@ -79,19 +80,32 @@ class ClassifyImpute():
 
 
         self.mids,self.cids = self.Generate_ids()
+        self.batch_size = batch_size
+        # self.losshist = []
+        # self.gradhist = [] 
+        
 
-        self.losshist = []
-        self.gradhist = [] 
-        #imputers
+
+        #  _____                       _                
+        # |_   _|                     | |               
+        #   | |  _ __ ___  _ __  _   _| |_ ___ _ __ ___ 
+        #   | | | '_ ` _ \| '_ \| | | | __/ _ \ '__/ __|
+        #  _| |_| | | | | | |_) | |_| | ||  __/ |  \__ \
+        # |_____|_| |_| |_| .__/ \__,_|\__\___|_|  |___/
+        #                 | |                           
+        #                 |_|                           
+
+
+
         if imputers is None:
             for i in range(self.m):
 
                 #add m MLP with relu units and L2 regularisation
                 self.imputers.append(tf.keras.Sequential([
-                    keras.layers.Dense(2*(self.m-1), activation ='relu',input_shape = (self.m-1,),
+                    tf.keras.layers.Dense(2*(self.m-1), activation ='relu',input_shape = (self.m-1,),
                         kernel_regularizer=tf.keras.regularizers.l2(reg)),
-                    keras.layers.Dense(self.m-1,activation = 'relu',kernel_regularizer=tf.keras.regularizers.l2(reg)),
-                    keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2(reg))]))
+                    tf.keras.layers.Dense(self.m-1,activation = 'relu',kernel_regularizer=tf.keras.regularizers.l2(reg)),
+                    tf.keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2(reg))]))
 
         #if custom imputers are defined
         else:
@@ -100,94 +114,175 @@ class ClassifyImpute():
 
         #classifier
         if classifier is None:
-            self.classifier = tf.keras.Sequential([keras.layers.Dense(20,activation = 'relu', input_shape = (self.m,), 
+            self.classifier = tf.keras.Sequential([tf.keras.layers.Dense(20,activation = 'relu', input_shape = (self.m,), 
                 kernel_regularizer =tf.keras.regularizers.l2(self.reg)),
-            keras.layers.Dense(5,activation = 'relu', kernel_regularizer = tf.keras.regularizers.l2(self.reg)),
-            keras.layers.Dense(1, activation = 'sigmoid')])
+            tf.keras.layers.Dense(5,activation = 'relu', kernel_regularizer = tf.keras.regularizers.l2(self.reg)),
+            tf.keras.layers.Dense(1, activation = 'sigmoid')])
         else:
             self.classifier = classifier
 
 
 
 
-
-
-    #   _____                       _ _             
-    #  / ____|                     | (_)            
-    # | (___   __ _ _ __ ___  _ __ | |_ _ __   __ _ 
-    #  \___ \ / _` | '_ ` _ \| '_ \| | | '_ \ / _` |
-    #  ____) | (_| | | | | | | |_) | | | | | | (_| |
-    # |_____/ \__,_|_| |_| |_| .__/|_|_|_| |_|\__, |
-    #                        | |               __/ |
-    #                        |_|              |___/ 
-
+        #  _____                                          _        _   _                 
+        # |  __ \                                        | |      | | (_)                
+        # | |__) | __ ___  ___ ___  _ __ ___  _ __  _   _| |_ __ _| |_ _  ___  _ __  ___ 
+        # |  ___/ '__/ _ \/ __/ _ \| '_ ` _ \| '_ \| | | | __/ _` | __| |/ _ \| '_ \/ __|
+        # | |   | | |  __/ (_| (_) | | | | | | |_) | |_| | || (_| | |_| | (_) | | | \__ \
+        # |_|   |_|  \___|\___\___/|_| |_| |_| .__/ \__,_|\__\__,_|\__|_|\___/|_| |_|___/
+        #                                    | |                                         
+        #                                    |_|                                         
 
 
 
-    @tf.function 
-    def getbatch_label(self,batch_size,X,Y,label):
+        #maskj considers all missing points not on axis j to be observed
+        self.maskj_list = []
+        self.make_maskj_list()
+
+        #for use in imputation function (all the axis which are not j)
+        self.notj_list = []
+        for j in range(self.m):
+            #indicies of dimensions that are not j
+            notj = tf.constant([i for i in range(self.m) if i!=j])
+            self.notj_list.append(notj)
+
+        #All possible combinations of Xt without its j'th axis
+        self.Xt_no_j_list = []
+        for j in range(self.m):
+            Xt_no_j = tf.gather(self.Xt,self.notj_list[j],axis=1)
+            self.Xt_no_j_list.append(Xt_no_j)
+
+        #label ids of where labels==0 or labels ==1
+        self.labels_ids_list = []
+        for y in range(2):
+            self.labels_ids_list.append(tf.where(self.labels==y)[:,0])
+
+        #ids where m is missing on axis j
+        self.mj_ids_list = []
+        for j in range(self.m):
+            self.mj_ids_list.append(tf.where(self.mask[:,j]==0)[:,0])
+
+
+        self.mjy_ids_list = []
+        for y in range(2):
+            tempy = []
+            for j in range(self.m):
+                tset = tf.sets.intersection(self.labels_ids_list[y][None,:],
+                    self.mj_ids_list[j][None, :])
+                tempy.append(tset.values)
+            self.mjy_ids_list.append(tempy)
+
+
+
+        #  _____        _                 _       
+        # |  __ \      | |               | |      
+        # | |  | | __ _| |_ __ _ ___  ___| |_ ___ 
+        # | |  | |/ _` | __/ _` / __|/ _ \ __/ __|
+        # | |__| | (_| | || (_| \__ \  __/ |_\__ \
+        # |_____/ \__,_|\__\__,_|___/\___|\__|___/
+                                                
+
+        # self.missing_datasets = []
+        self.complete_datasets = []
+        self.makedataset_conditional()
+
+
+        self.iterators = []
+        self.create_iterators()
+
+                                              
+
+
+    def make_maskj_list(self):
         """
-        samples a batch of size_batch size from data (X,Y)
-        conditioning on the value of label
-
-        Parameters
-        ----------
-        batch_size : int
-        X : tensor n x m
-        Y : tensor n x 1
-        label : int
-
-        Output
-        ---------
-        tuple : (tensor : batch_size x m , tensor: batch_size, 1)
+        Generates a mask for each dim (where the maskj for each dim
+        assumes all points not on dim j are complete)
         """
-        yids = tf.where(Y==label)[:,0]
-        sample_ids = sample_without_replacement(yids,batch_size)
-        batchX = tf.gather(X,sample_ids,axis=0)
-        batchY = tf.gather(Y,sample_ids,axis=0)
-        return (batchX,batchY)
+        #create a maskj for each dim
+        for j in range(self.m):
+            masklist = []
+            #construct via stacking
+            for i in range(self.m):
+                if i==j:
+                    masklist.append(tf.gather(self.mask,j,axis=1))
+                else:
+                    masklist.append(tf.ones(self.n))
+            maskj =tf.stack(masklist,axis=1)
+            #add to list
+            self.maskj_list.append(maskj)
 
-    @tf.function
-    def getbatch_label_MC(self,batch_size,X,Y,label,j,missing=True):
+
+    def create_iterators(self):
+        self.iterators=[]
+        for j in range(self.m):
+            it = iter(self.complete_datasets[j])
+            self.iterators.append(it)
+
+
+    def makedataset_conditional(self):
         """
-        samples a batch of size batch_size from data (X,Y)
-        conditioning on the value of label and conditioning on
-        whether the data should be missing or complete (controlled
-        by the missing boolean parameter) on dimension j.
-
-        Parameters
-        ----------
-        batch_size : int
-        X : tensor n x m
-        Y : tensor n x 1
-        label : int
-        j : int in range 0,m-1
-        missing : boolean
-
-        Output
-        ---------
-        tuple : (tensor : batch_size x m , tensor: batch_size, 1)
+        Creates a missing and complete 
+        tensorflow dataset for each dim 
+        where batches always have same label
         """
-        assert j< self.m ; "Please enter a j value between 0 and d-1"
-        
-        if missing:
-            #indicies where mask is missing on dimension j 
-            jids = tf.where(self.mask[:,j] == 0)[:,0]
-        if not missing:
-            jids = tf.where(self.mask[:,j] == 1)[:,0]
-        #indicies where y=label
-        yids = tf.where(Y==label)[:,0]
-        
+        complete_datasets = []
+
+        #dataset of all data
+        initdat = tf.data.Dataset.from_tensor_slices((self.Xt,
+            self.labels,self.mask))
+
+
+        #complete data processing:
+        for j in range(self.m):
+            y0dat = initdat.filter(lambda x,y,m : CondPred(x,y,m,0,j,1))
+            y1dat = initdat.filter(lambda x,y,m : CondPred(x,y,m,1,j,1))
+
+            y0dat = y0dat.repeat().shuffle(self.n).batch(self.batch_size)
+            y1dat = y1dat.repeat().shuffle(self.n).batch(self.batch_size)
+
+            #sample equally from the two labels
+            ydat = tf.data.experimental.sample_from_datasets([y0dat, y1dat], [0.5, 0.5])
+            #store the dataset
+            complete_datasets.append(ydat)   
+
+        #update the datasets:
   
-        # to calculate the intersection of jids and yids we use a set 
-        tset = tf.sets.intersection(jids[None,:], yids[None, :])
-        ids = tset.values
-        #sample points from the possible ids
-        sample_ids = sample_without_replacement(ids,batch_size)
-        batchX = tf.gather(X,sample_ids,axis=0)
-        batchY = tf.gather(Y,sample_ids,axis=0)
-        return (batchX,batchY)
-      
+        self.complete_datasets = complete_datasets       
+
+
+    def update_Xt(self,new_Xt):
+        """
+        Updates Xt in the frame
+        """
+        #update Xt
+        self.Xt=new_Xt
+        #update complete datasets
+        self.makedataset_conditional()
+        #reset iterators
+        self.create_iterators()
+        #update Xt without j'th axis
+        self.Xt_no_j_list = []
+        for j in range(self.m):
+            Xt_no_j = tf.gather(self.Xt,self.notj_list[j],axis=1)
+            self.Xt_no_j_list.append(Xt_no_j)
+                         
+
+
+
+
+
+
+    #  _______        _       _             
+    # |__   __|      (_)     (_)            
+    #    | |_ __ __ _ _ _ __  _ _ __   __ _ 
+    #    | | '__/ _` | | '_ \| | '_ \ / _` |
+    #    | | | | (_| | | | | | | | | | (_| |
+    #    |_|_|  \__,_|_|_| |_|_|_| |_|\__, |
+    #                                  __/ |
+    #                                 |___/ 
+
+
+
 
     def Generate_ids(self):
         """
@@ -245,117 +340,110 @@ class ClassifyImpute():
 
 
 
-    #  _______        _       _             
-    # |__   __|      (_)     (_)            
-    #    | |_ __ __ _ _ _ __  _ _ __   __ _ 
-    #    | | '__/ _` | | '_ \| | '_ \ / _` |
-    #    | | | | (_| | | | | | | | | | (_| |
-    #    |_|_|  \__,_|_|_| |_|_|_| |_|\__, |
-    #                                  __/ |
-    #                                 |___/ 
-
-
-
-
-    @tf.function
-    def impute(self,j,X):
+    def impute(self,X,j):
         """
-        Impute dimension j of X  
-        """
-        #create a mask for dimension j (all other values are considered observable)
-        #and call this mask maskj
-        masklist = []
-        for i in range(self.m):
-            if i==j:
-                masklist.append(tf.gather(self.mask,1,axis=1))
-            else:
-                masklist.append(tf.ones(self.n))
-
+        Impute dimension j of a tensor X
         
-        maskj =tf.stack(masklist,axis=1)
+        Parameters
+        ----------
+        X: tensor l x m
+        j: int in range 0 to m-1
 
+        Output
+        ----------
+        X_hat : tensor l x m
 
-        #indicies of dimensions that are not j
-        notj = tf.constant([i for i in range(self.m) if i!=j])
+        """
 
-
-        X_no_j = tf.gather(X,notj,axis=1)
+        #gather input for imputer
+        X_no_j = tf.gather(X,self.notj_list[j],axis=1)
+        #predict for all values
         X_pred = self.imputers[j](X_no_j)
-        X_hat = X*maskj + X_pred*(1-maskj)
-
+        #only impute missing values on dim j 
+        X_hat = X*self.maskj_list[j] + X_pred*(1-self.maskj_list[j])
         return X_hat
 
 
-
-   
-    # def train_imputer(self,j,X,Y,batch_size,epochs=1,disable_bar=False):
-    #     """
-    #     Train imputer j for niter iterations 
-    #     """
-    #     if epochs==1:
-    #         disable_bar=True
-    #     for i in tqdm(range(epochs),desc = "Imputer %i"%j,disable = disable_bar):
-    #         #train on first label y=0
-    #         with tf.GradientTape() as tape:
-    #             Xhat = self.impute(j,X)
-    #             #batch of complete values
-    #             bc,_ = self.getbatch_label_complete(batch_size,0,j,Xhat,Y)
-    #             bm,_ = self.getbatch_label_missing(batch_size,0,j,Xhat,Y)
-    #             #run sinkhorn on the batches
-    #             loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,div=True,niter=self.niter,epsilon=self.eps)
-
-    #             # self.losshist.append(loss.numpy())
-    #         #perform gradient step on NN for dim j 
-
-    #         # tf.debugging.Assert(loss>0,[loss])
-    #         gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
-    #         gradients = check_gradients(gradients)
-    #         self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
-
-    #         # self.gradhist.append(gradients)
-
-    #         #train on second label y=1
-    #         with tf.GradientTape() as tape:
-    #             Xhat = self.impute(j,X)
-    #             #batch of complete values
-    #             bc,_ = self.getbatch_label_complete(batch_size,1,j,Xhat,Y)
-    #             bm,_ = self.getbatch_label_missing(batch_size,1,j,Xhat,Y)
-    #             #run sinkhorn on the batches
-    #             loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,div=True,niter=self.niter,epsilon=self.eps)
-    #             # self.losshist.append(loss.numpy())
-
-    #         # tf.debugging.Assert(loss>0,[loss])
-    #         #perform gradient step on NN for dim j 
-    #         gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
-    #         gradients = check_gradients(gradients)
-    #         self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
-
-    #         # self.gradhist.append(gradients)
+    def imputeXt_getbatch(self,j,label):
+        """
+        Impute dimension j of a tensor self.Xt
+        and return a batch of size getbatch
         
+        Parameters
+        ----------
+        j: int in range 0 to m-1
+        label : int (0 or 1 )
 
-    @tf.function
-    def forward(self,batch,wbatch1,wbatch2):
+        Output
+        ----------
+        bm : tensor (batch_size,m) of missing vals with label from Xt
+
         """
-        Forward of learning batch + wasserstein distance of two batches
-        batch = tuple (data,labels)
+
+
+        #Impute Xt using dimensions that are not j 
+        X_pred = self.imputers[j](self.Xt_no_j_list[j])
+        #sample ids to create batch
+        sample_ids = sample_without_replacement(self.mjy_ids_list[label][j],
+            self.batch_size)
+        bm = tf.gather(X_pred,sample_ids,axis=0)
+
+        return bm 
+
+
+
+    # @tf.function
+    def train_imputer_step(self,bc,bm,j):
         """
+        Single train step for imputer j on a dataset (X,Y)
+        conditioned on a label 
 
-        #unpack labels for ERM batch and wasserstein batch
-        X,Y = batch
-        b1,b1_labels = wbatch1
-        b2,b2_labels = wbatch2 
+        Parameters
+        ----------
+        bc : tensor (batch_size, m) complete valued batch
+        bm : tensor (batch_size, m) missing valued batch 
+        j : int (dimension for which the relevant imputer will be played)
+        """
+        with tf.GradientTape() as tape:
+            # tape.watch(self.imputers[j].trainable_weights)
+            #run sinkhorn on the batches
+            loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,
+                div=True,niter=self.niter,epsilon=self.eps)
 
-        #Predict and score ERM 
-        out = self.classifier(X)
-        er_loss = self.classifier_loss(out,Y)
+            # self.losshist.append(loss.numpy())
+        #perform gradient step on NN for dim j 
+        tf.debugging.Assert(loss>0,[loss])
+        gradients = tape.gradient(loss ,self.imputers[j].trainable_weights)
 
-        #wasserstein regularisation
-        wloss = sinkhorn(b1.shape[0],b2.shape[0],b1,b2,self.p,div=True,niter=self.niter,epsilon=self.eps)
+        gradients = check_gradients(gradients)
+        self.opt.apply_gradients(zip(gradients,self.imputers[j].trainable_weights))
 
-        #overall loss = er_loss + wreg*wloss
-        loss = er_loss + self.wass_reg*wloss
+        # self.gradhist.append(gradients)
 
-        return loss 
+
+
+    # def forward(self,batch,wbatch1,wbatch2):
+    #     """
+    #     Forward of learning batch + wasserstein distance of two batches
+    #     batch = tuple (data,labels)
+    #     """
+
+    #     #unpack labels for ERM batch and wasserstein batch
+    #     X,Y = batch
+    #     b1,b1_labels = wbatch1
+    #     b2,b2_labels = wbatch2 
+
+    #     #Predict and score ERM 
+    #     out = self.classifier(X)
+    #     er_loss = self.classifier_loss(out,Y)
+
+    #     #wasserstein regularisation
+    #     wloss = sinkhorn(b1.shape[0],b2.shape[0],b1,b2,self.p,div=True,niter=self.niter,epsilon=self.eps)
+
+    #     #overall loss = er_loss + wreg*wloss
+    #     loss = er_loss + self.wass_reg*wloss
+
+    #     return loss 
 
 
 
