@@ -44,7 +44,7 @@ def cost_mat(X,Y,n,m,p=2):
 @tf.function 
 def K_tild(u,v,n,m,C,epsilon=0.01):
     """
-    Calculates the matrix exp ( C_ij -ui- vj ) for sinkhorn step
+    Calculates the matrix  ktild = exp (1/eps ( ui+vj-Cij) ) for sinkhorn step
     for uniform measures
     """
     C_tild = C - tf.transpose(tf.reshape(tf.tile(u[:,0],[m]),[m,n])) - tf.reshape(tf.tile(v[:,0],[n]),[n,m])
@@ -74,13 +74,20 @@ def sinkhorn_cost_log(n,m,C,niter,epsilon=0.01):
     u = tf.zeros([n,1])
     v = tf.zeros([m,1])
     for i in range(niter):
+        # if i!=niter-1:
+        #     u,v = tf.stop_gradient(sinkhorn_step_log(u,v,n
+        #         ,m,C,epsilon))
+        # else:
+        #     u,v = sinkhorn_step_log(u,v,n
+        #         ,m,C,epsilon)
         u,v = sinkhorn_step_log(u,v,n,m,C,epsilon)
+
     gamma_log = K_tild(u,v,n,m,C,epsilon)
     final_cost_log = tf.reduce_sum(gamma_log*C)
     return final_cost_log
     
 @tf.function
-def sinkhorn(n,m,X,Y,p,div,niter=10,epsilon=0.01):
+def sinkhorn(n,m,X,Y,p,div,niter=100,epsilon=0.01):
     """
     Returns the sinkhorn loss or divergance calculated 
     using the logsumexp approach for uniform measures
