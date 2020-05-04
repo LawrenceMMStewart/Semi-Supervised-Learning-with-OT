@@ -59,7 +59,7 @@ def scatter3D(plotlist,title="Scatter",xl="x",yl="y",
 		fig = plt.figure()
 		ax = fig.add_subplot(111, projection='3d')
 		for data in plotlist:
-			ax.scatter(data[:,0],data[:,1],data[:,2],alpha=0.8,marker ='.')
+			ax.scatter(data[:,0],data[:,1],data[:,2],alpha=0.6,marker ='.')
 		ax.set_title(title)
 		ax.set_xlabel(xl)
 		ax.set_ylabel(yl)
