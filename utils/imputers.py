@@ -361,6 +361,8 @@ class ClassifyImpute():
         X_pred = self.imputers[j](X_no_j)
         #only impute missing values on dim j 
         X_hat = X*self.maskj_list[j] + X_pred*(1-self.maskj_list[j])
+
+
         return X_hat
 
 
@@ -383,17 +385,20 @@ class ClassifyImpute():
 
         #Impute Xt using dimensions that are not j 
         X_pred = self.imputers[j](self.Xt_no_j_list[j])
+        #obtain prediction
+        X_hat = self.Xt*self.maskj_list[j] + X_pred*(1-self.maskj_list[j])
         #sample ids to create batch
         sample_ids = sample_without_replacement(self.mjy_ids_list[label][j],
             self.batch_size)
-        bm = tf.gather(X_pred,sample_ids,axis=0)
+        bm = tf.gather(X_hat,sample_ids,axis=0)
+
 
         return bm 
 
 
 
     # @tf.function
-    def train_imputer_step(self,bc,bm,j):
+    def train_imputer_step(self,bc,j,label):
         """
         Single train step for imputer j on a dataset (X,Y)
         conditioned on a label 
@@ -405,7 +410,12 @@ class ClassifyImpute():
         j : int (dimension for which the relevant imputer will be played)
         """
         with tf.GradientTape() as tape:
-            # tape.watch(self.imputers[j].trainable_weights)
+            tape.watch(self.imputers[j].trainable_weights)
+
+            #sample bm
+            bm = self.imputeXt_getbatch(j,label)
+
+
             #run sinkhorn on the batches
             loss = sinkhorn(bc.shape[0],bm.shape[0],bc,bm,self.p,
                 div=True,niter=self.niter,epsilon=self.eps)
