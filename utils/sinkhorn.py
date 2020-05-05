@@ -74,13 +74,15 @@ def sinkhorn_cost_log(n,m,C,niter,epsilon=0.01):
     u = tf.zeros([n,1])
     v = tf.zeros([m,1])
     for i in range(niter):
-        # if i!=niter-1:
-        #     u,v = tf.stop_gradient(sinkhorn_step_log(u,v,n
-        #         ,m,C,epsilon))
-        # else:
-        #     u,v = sinkhorn_step_log(u,v,n
-        #         ,m,C,epsilon)
-        u,v = sinkhorn_step_log(u,v,n,m,C,epsilon)
+        if i!=niter-1:
+            u,v =sinkhorn_step_log(u,v,n
+                ,m,C,epsilon)
+            u =tf.stop_gradient(u)
+            v =tf.stop_gradient(v)
+        else:
+            u,v = sinkhorn_step_log(u,v,n
+                ,m,C,epsilon)
+        # u,v = sinkhorn_step_log(u,v,n,m,C,epsilon)
 
     gamma_log = K_tild(u,v,n,m,C,epsilon)
     final_cost_log = tf.reduce_sum(gamma_log*C)
