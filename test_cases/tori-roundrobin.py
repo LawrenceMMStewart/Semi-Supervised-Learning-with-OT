@@ -49,19 +49,21 @@ print("Available GPUS:",get_available_gpus())
 # with tf.device(dev):
 
 #Torus Parameters
-R1,r1 = (9,0.5)
-R2,r2 = (3,0.5)
+R1,r1 = (12,1)
+R2,r2 = (4,1)
 n_sq = 50
-var = 0.5
+var = 1
 Tori = NoisyTorus(R1,R2,r1,r2,n_sq,n_sq,var)
 data = Tori.data
 labels = Tori.labels 
+
+
 
 #insert nans as missing data
 mframe = MissingData(data,labels=labels)
 
 # create the observable dataset and mask:
-mframe.MCAR_Mask(0.04) #0.04
+mframe.MCAR_Mask(0.08) #0.04
 per = mframe.percentage_missing()
 print("Percentage of missing data = ",per)
 
@@ -70,32 +72,37 @@ mids,cids = mframe.Generate_ids()
 #initialise nans as samples from normal dist
 X_start = mframe.Initialise_Nans(eta=1)
 
+# nt = len(X_start)//2
+# scatter3D([X_start[:nt],X_start[nt:]],colorlist =['b','g'],
+#     markerlist=['.','.'],alphalist=[0.4,0.4])
 
-Xt = tf.constant(X_start,dtype =tf.float32)
-labels = tf.constant(labels,dtype=tf.float32)
-mask = tf.constant(mframe.mask,dtype = tf.float32)
+with tf.device(dev):
+    Xt = tf.constant(X_start,dtype =tf.float32)
+    labels = tf.constant(labels,dtype=tf.float32)
+    mask = tf.constant(mframe.mask,dtype = tf.float32)
 
-networks = ClassifyImpute(Xt,labels,mask,niter=args.niter,
-    optimiser =tf.keras.optimizers.Adam(),p=1.0) #learning_rate=1e-5 for adam previously
+    networks = ClassifyImpute(Xt,labels,mask,niter=args.niter,
+        optimiser =tf.keras.optimizers.Adam(),p=1.0) #learning_rate=1e-5 for adam previously
 
 
-#training for T epochs
-for t in tqdm(range(args.T),desc = "RR Iter:"):
-    #for each imputer
-    for j in tqdm(range(mframe.m),desc = "Imputer"):
-        #train impute j for epochs iterations conditioning on label
-        for i in tqdm(range(args.epochs),desc="Epoch"):
+    #training for T epochs
+    for t in tqdm(range(args.T),desc = "RR Iter:"):
+        #for each imputer
+        for j in tqdm(range(mframe.m),desc = "Imputer"):
+            #train impute j for epochs iterations conditioning on label
+            for i in tqdm(range(args.epochs),desc="Epoch"):
 
-            #sample a batch of complete ids
-            bc,lbc,_ = next(networks.iterators[j])
-            #sample a batch from the missing data 
-            #conditional on the label of bc
-            cond_label = int(lbc[0][0].numpy())
-            with tf.device(dev):
+                #sample a batch of complete ids
+                bc,lbc,_ = next(networks.iterators[j])
+                #sample a batch from the missing data 
+                #conditional on the label of bc
+                cond_label = int(lbc[0][0].numpy())
+
                 networks.train_imputer_step(bc,j,cond_label)
-        #after training imputer j update Xt
-        Xt = networks.impute(Xt,j)
-        networks.update_Xt(Xt)
+            #after training imputer j update Xt
+            Xt = networks.impute(Xt,j)
+
+
 
 
 Xft1 = Xt.numpy()[networks.labels_ids_list[0].numpy()]
