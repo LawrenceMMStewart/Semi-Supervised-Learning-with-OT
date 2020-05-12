@@ -159,6 +159,17 @@ def uniform_barycentre_1D(xlist,µlist,K,weights=None):
 			
 	return support
 
+
+
+
+
+
+
+
+
+
+
+#an example 
 if __name__=="__main__":
 
 	#test case on uniform distributions
@@ -177,7 +188,7 @@ if __name__=="__main__":
 	for i in range(len(ks)):
 		k =ks[i]
 		h=heights[i]
-		ys= uniform_barycentre_1D([x1,x2],[µ1,µ2],k)
+		ys= uniform_barycentre_1D([x1,x2],[µ1,µ2],k,weights=[0.7,0.3])
 		plt.scatter(ys,[h for i in range(len(ys))],label="barycentre K=%i"%k,
 			alpha=0.7)
 	plt.tick_params(
@@ -189,5 +200,8 @@ if __name__=="__main__":
 	plt.scatter(x1,[1 for i in range(len(x1))],label="uniform support [0,1]",alpha=0.7)
 	plt.scatter(x2,[2 for i in range(len(x2))],label="uniform support [1,2]",alpha=0.7)
 	plt.legend()
+	plt.grid('on')
+	ax = plt.gca()
+	ax.set_facecolor('#D9E6E8')
 	plt.title("Barycentres for Uniform Measures with Supports Sampled from Uniform Distributions")
 	plt.show()
