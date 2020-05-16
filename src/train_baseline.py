@@ -76,19 +76,21 @@ model = tf.keras.Sequential([
 
 
 model.summary()
-model.compile(optimizer="adam",loss=loss_fun,)
+#create a callback that saves models weights after training
 
-training_history= model.fit(train, train_y,epochs=25000,verbose=0,
+model.compile(optimizer="adam",loss=loss_fun)
+
+training_history= model.fit(train, train_y,epochs=25000,verbose=1,
 	validation_data=(test,test_y),
 	callbacks=[tensorboard_callback])
 
 print("train set performance: \n",
 	model.evaluate(x=train,y=train_y))
-
-
 print("validation set performance: \n",
 	model.evaluate(x=test,y=test_y))
 
-dir_path = os.path.join("src","models",dname,"baseline",run_name)
-model.save_weights(dir_path)
+#save model
+save_path = os.path.join("src","models",dname,
+	"baseline",str(n_labels))
+model.save(save_path)
 
