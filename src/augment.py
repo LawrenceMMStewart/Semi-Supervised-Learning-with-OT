@@ -51,8 +51,6 @@ train_y  = pd.DataFrame.to_numpy(train_y).reshape(-1,1).astype(np.float32)
 test_y  = pd.DataFrame.to_numpy(test_y).reshape(-1,1).astype(np.float32)
 
 
-
-
 l2reg=1e-3
 d=train.shape[1]
 loss_fun = tf.keras.losses.MSE
@@ -62,4 +60,56 @@ checkpoint_dir  = os.path.join("src","models",dname,"baseline",args.model_name)
 
 model = tf.keras.models.load_model(checkpoint_dir)
 model.summary()
-print(model.weights)
+
+pred = model(test)
+
+
+
+amplitudes = [1e-3,5e-3,1e-2,5e-2,1e-1]
+mean_val_perturbs = [] #mean change across validation set
+max_val_perturbs = [] #maximum change for predictions in validation set
+min_val_perturbs = [] # minimum change for predictions in validation set
+
+
+for stddev in amplitudes:
+	noise = tf.random.normal(test.shape,mean=0.0,stddev = stddev)
+	aug_pred = model(test+noise)
+	mse = loss_fun(aug_pred,pred)
+	diff = tf.reduce_mean(mse)
+
+	#record the mean change (and max and min)
+	mean_val_perturbs.append(diff.numpy())
+	max_val_perturbs.append(tf.reduce_max(mse).numpy())
+	min_val_perturbs.append(tf.reduce_min(mse).numpy())
+
+
+print("mean change", mean_val_perturbs)
+print("max change", max_val_perturbs)
+print("min change", min_val_perturbs)
+
+
+
+fig, ax = plt.subplots()
+barWidth = 0.25
+
+#positions to plot bars
+r1 = np.arange(len(mean_val_perturbs))
+r2 = [x + barWidth for x in r1]
+r3 = [x + barWidth for x in r2]
+
+plt.bar(r1,mean_val_perturbs,label = "Mean change in prediction - validation set",
+	width=barWidth, edgecolor='white')
+plt.bar(r2,max_val_perturbs,label = "Max change in prediction - validation set",
+	width=barWidth, edgecolor='white')
+plt.bar(r3,min_val_perturbs,label = "Min change in prediction - validation set",
+	width=barWidth, edgecolor='white')
+opacity = 0.6
+plt.legend()
+plt.grid("on",axis='y')
+plt.ylabel("MSE Validation Set")
+plt.xlabel(r"$\sigma$")
+plt.xticks([r + barWidth for r in range(len(r1))],
+	[str(a) for a in amplitudes])
+plt.yscale("log")
+ax.set_facecolor('#D9E6E8')
+plt.show()
