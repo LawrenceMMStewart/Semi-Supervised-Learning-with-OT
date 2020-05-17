@@ -1,7 +1,7 @@
 #tests for ot1d.py
 
 import pytest
-from ot1d import *
+from ot.ot1d import *
 import numpy as np
 
 def precision_eq(a,b):
