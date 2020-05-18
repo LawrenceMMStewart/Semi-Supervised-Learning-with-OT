@@ -13,6 +13,19 @@ from ot.ot1d import *
 
 
 def sample_mixup_param(n,alpha=0.75):
+	"""
+	Sample X from a beta distribution with parameters
+	alpha,alpha and return max(X,1-X) for mixup
+
+	Parameters
+	-----------
+	n : int (number of points to sample)
+	alpha : float (parameter for beta dist)
+
+	Output
+	----------
+	lambdas: array (n x 1)
+	"""
 
 	#sample from beta distribution with params alpha,alpha
 	l_sample = np.random.beta(alpha,alpha,
@@ -26,12 +39,22 @@ def sample_mixup_param(n,alpha=0.75):
 
 def mixup_ot1d(batch1,batch2,sups1,sups2,alpha=0.75,K=5):
 	"""
-	batch1 n x m 
-	batch2 n x m
-	sup1 list of size n consisting of sups of batch 1 
-	y2  list of size n consisting of sups of batch 2
-	alpha float beta dist param
-	K int number of points for barycentre
+	Returns the mixup of two batches using 1d Optimal Transport
+	to return the barycentres of the label distributions.
+
+	Parameters
+	-----------
+	batch1 : array n x m (x co-ordinates) 
+	batch2 : array n x m (x co-ordinates) 
+	sup1: list size n (containing arrays of measure supports (sorted))
+	sup2: list size n (containing arrays of measure supports (sorted))
+	alpha: float (param for beta dist) 
+	K : int (size of barycentre approx)
+
+	Output
+	---------
+	X : array n x m
+	Y : list of arrays of size K x 1 
 	"""
 
 	n = batch1.shape[0]
@@ -62,18 +85,5 @@ def mixup_ot1d(batch1,batch2,sups1,sups2,alpha=0.75,K=5):
 	return X,Y
 
 
-
-if __name__ =="__main__":
-
-	b1 = np.ones((5,2))
-	b2 = np.zeros((5,2))
-
-	sup1 = np.ones((5,1))
-	sup2 = np.zeros((5,1))
-	K=1
-
-	X,Y =mixup_ot1d(b1,b2,sup1,sup2,K=K)
-	print(X)
-	print(Y)
 
 
