@@ -65,6 +65,7 @@ def mixup_ot1d(batch1,batch2,sups1,sups2,alpha=0.75,K=5):
 
 	#create an array (lambdas,1-lambdas)
 	weights = np.concatenate((lambdas,1-lambdas),axis=1)
+
 	
 	#combine supports into lists
 	pointwise_join = lambda x,y: [x,y]
