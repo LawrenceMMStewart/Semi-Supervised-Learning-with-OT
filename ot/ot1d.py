@@ -12,35 +12,6 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 
-@tf.function 
-def euc_cost_mat(X,Y,n,m,p=2):
-    """
-    Returns table of pointwise Eucildean Distances
-    C_ij=|| x_i - y_j ||^p
-
-    Parameters
-    ----------
-    X : (tensor) (n x p) 
-    Y : (tensor) (m x p)
-    n : int
-    m : int 
-    p : int
-
-    Output
-    ---------
-    C : (tensor) (n x m) 
-    """
-    XX = tf.reduce_sum(tf.multiply(X,X),axis=1)
-    YY = tf.reduce_sum(tf.multiply(Y,Y),axis=1)
-    C1 = tf.transpose(tf.reshape(tf.tile(XX,[m]),[m,n]))
-    C2 = tf.reshape(tf.tile(YY,[n]),[n,m])
-    C3 = tf.transpose(tf.linalg.matmul(Y,tf.transpose(X)))
-    C = C1 + C2 - 2*C3;
-    if p == 2:
-        return C
-    else:
-        return tf.sqrt(C+10**(-3))**p
-
 @tf.function
 def optimal_assignment_1D(X,Y,p):
 	"""
@@ -141,27 +112,23 @@ def uniform_barycentre_1D(xlist,µlist,K,weights=None):
 
 	#obtain all transport maps
 	tmaps = [transport_to_uniform_1D(µ,K) for µ in µlist]
-	#weight the transport maps accordingly
-	normalised_tmaps = [tmaps[i]*weights[i] for i in range(no_measures)]
-	C = sum(normalised_tmaps).sum(axis=0) 
-	normalised_tmaps = [t/C for t in normalised_tmaps]
 
+	#weight the transport maps accordingly (n =normalised)
+	ntmaps = [tmaps[i]*weights[i] for i in range(no_measures)]
+	C = sum([x.sum(axis=0) for x in ntmaps])
+	ntmaps = [t/C for t in ntmaps]
 
 
 	for k in range(K):
 		#calculate the support points
 		#recall support[k] = sum_i=1^n w_i* (T_i[:,k].T @ x_i)
 		for i in range(no_measures):
-			p = normalised_tmaps[i][:,k]
+			p = ntmaps[i][:,k]
 			x = xlist[i] #obtain support of measure i 
 
 			support[k]+=np.sum(p*x) #weighted contribution from xi -> sup[k]
 			
 	return support
-
-
-
-
 
 
 
@@ -188,7 +155,7 @@ if __name__=="__main__":
 	for i in range(len(ks)):
 		k =ks[i]
 		h=heights[i]
-		ys= uniform_barycentre_1D([x1,x2],[µ1,µ2],k,weights=[0.7,0.3])
+		ys= uniform_barycentre_1D([x1,x2],[µ1,µ2],k)
 		plt.scatter(ys,[h for i in range(len(ys))],label="barycentre K=%i"%k,
 			alpha=0.7)
 	plt.tick_params(
