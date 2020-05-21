@@ -12,6 +12,7 @@ import pandas as pd
 from ot.ot1d import *
 from src.mixup import *
 from sklearn.utils import shuffle
+from ot.sinkhorn import *
 
 
 
@@ -120,6 +121,82 @@ def mixmatch_ot1d(model,X,Y,U,
 
 	#return labelled and unlabelled batches
 	return Xprime,Yprime,Uprime,Qprime
+
+
+
+def mixmatchloss_ot1d(Y,Yhat,Q,Qhat,
+	reg=100,niter=10,epsilon=0.01,p=2):
+	"""
+	Mixmatch loss function via 1D OT:
+
+	loss = 1/n sum_i W_p(y_i,yhat_i) + reg * 1/n sum_i W_p(q_i,qhat_i)
+
+	Parameters
+	----------
+	Y : array (n,) of varied size arrays float32
+	Yhat : array (n,) of arrays of size (1,1) float32
+	Q : array (n,) of varied size arrays float32
+	Qhat : array (n,) of arrays of size (1,1) float32
+	reg : float (regularisation for consistancy term)
+	niter : int (number of iterations of sinkhorn)
+	epsilon : float (sinkhorn reg param)
+	p : float (cost matrix power)
+
+	Output
+	---------
+
+	out : float.32
+
+	"""
+
+	ns_y = [y.shape[0] for y in Y]
+	ns_yhat = np.ones(len(Yhat)).astype(np.int)
+
+	ns_q = [q.shape[0] for q in Q]
+	ns_qhat = np.ones(len(Qhat)).astype(np.int)
+
+	SH = lambda n,m,X,Y : sinkhorn(n,m,X,Y,p,True,
+		niter=niter,epsilon=epsilon)
+
+	lossesx = list(map(SH,ns_y,ns_yhat,Y,Yhat))
+	lossesu = list(map(SH,ns_q,ns_qhat,Q,Qhat))
+
+	lossx = tf.reduce_mean(lossesx)
+	lossu = tf.reduce_mean(lossesu)
+
+	out = lossx + reg*lossu
+
+	return out
+
+
+#example of loss function
+if __name__=="__main__":
+	
+	y1 = np.array([[1.0],[1.1],[1.3]]).astype(np.float32)
+	y2 = np.array([[3.0],[2.95],[3.1]]).astype(np.float32)
+	Y = np.array([y1,y2])
+	
+	Yhat = tf.constant([[[1.0]],[[3.0]]],dtype=tf.float32)
+
+	q1 = np.array([[2.0],[2.01],[1.987]]).astype(np.float32)
+	q2 = np.array([[5.1],[5.13],[5.09]]).astype(np.float32)
+	Q = np.array([q1,q2])
+
+	Qhat = tf.constant([ [[2.15]],[[5.76]] ],dtype=tf.float32)
+
+
+
+	print(mixmatchloss_ot1d(Y,Yhat,Q,Qhat))
+
+
+
+
+
+
+
+
+
+
 
 
 
