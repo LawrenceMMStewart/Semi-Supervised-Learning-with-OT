@@ -9,11 +9,10 @@ import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import *
 
 
-@tf.function 
-def cost_mat(X,Y,n,m,p=2):
+
+def cost_mat(X,Y,n,m,p):
     """
     Returns table of pointwise Eucildean Distances
     C_ij=|| x_i - y_j ||^2
@@ -41,8 +40,8 @@ def cost_mat(X,Y,n,m,p=2):
     else:
         return tf.sqrt(C+10**(-3))**p
 
-@tf.function 
-def K_tild(u,v,n,m,C,epsilon=0.01):
+
+def K_tild(u,v,n,m,C,epsilon):
     """
     Calculates the matrix  ktild = exp (1/eps ( ui+vj-Cij) ) for sinkhorn step
     for uniform measures
@@ -51,8 +50,8 @@ def K_tild(u,v,n,m,C,epsilon=0.01):
     k_tild = tf.exp(-C_tild/epsilon)
     return k_tild
 
-@tf.function 
-def sinkhorn_step_log(u,v,n,m,C,epsilon=0.01):
+
+def sinkhorn_step_log(u,v,n,m,C,epsilon):
     """
     Calculates one step of sinkhorn in logsumexp manner
     for uniform measures
@@ -65,15 +64,15 @@ def sinkhorn_step_log(u,v,n,m,C,epsilon=0.01):
     v = epsilon*(tf.math.log(nu) - tf.math.log(Kv +10**(-6))) + v 
     return u,v
 
-@tf.function 
-def sinkhorn_cost_log(n,m,C,niter,epsilon=0.01):
+
+def sinkhorn_cost_log(n,m,C,niter,epsilon):
     """
     Calculates the log sinkhorn cost for uniform measures 
     """
     
     u = tf.zeros([n,1])
     v = tf.zeros([m,1])
-    for i in range(niter):
+    for i in tf.range(niter):
         if i!=niter-1:
             u,v =sinkhorn_step_log(u,v,n
                 ,m,C,epsilon)
@@ -89,26 +88,30 @@ def sinkhorn_cost_log(n,m,C,niter,epsilon=0.01):
     return final_cost_log
     
 @tf.function
-def sinkhorn(n,m,X,Y,p,div,niter=100,epsilon=0.01):
+def sinkhorn(X,Y,
+    p=tf.constant(2.0,dtype=tf.float32),
+    div=tf.constant(True),
+    niter=tf.constant(100),
+    epsilon=tf.constant(0.01,dtype=tf.float32)):
     """
     Returns the sinkhorn loss or divergance calculated 
     using the logsumexp approach for uniform measures
 
     Parameters
     ----------
-    n,m : int
-    p : float (exponent)
     X,Y : tensor (n x p), (m x p)
-    div : Boolean
-    niter : int
-    epsilon: float
+    p : tf.float32 (exponent)
+    div : tf.Boolean
+    niter : tf.int
+    epsilon: tf.float32
 
 
     Output
     ---------
     sinkhorn_costXY : tensor (1)
     """
-
+    n = X.shape[0]
+    m = Y.shape[0]
     CXY = cost_mat(X,Y,n,m,p)
     sinkhorn_costXY = sinkhorn_cost_log(n,m,CXY,niter,epsilon)
     if div:
@@ -121,12 +124,4 @@ def sinkhorn(n,m,X,Y,p,div,niter=100,epsilon=0.01):
         return sinkhorn_costXY
 
  
-@tf.function
-def sinkhorn_sq_batch(X,p=2,niter=10,div=True,epsilon=0.01):
-    #split batch in half
-    X1,X2 = tf.split(X,2)
-    n=X1.shape[0]
-    m=X2.shape[0]
-    #caluclate sinkhorn divergance
-    return sinkhorn(n,m,X1,X2,p,div,niter,epsilon)
 

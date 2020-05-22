@@ -79,3 +79,100 @@ def test_bary1d_225():
 	guess = uniform_barycentre_1D([x1,x2],[µ1,µ2],k)
 
 	assert precision_eq(answer,guess)
+
+
+
+def test_bary1d_diracs():
+	x1 = np.array([1.])
+	x2 = np.array([2.])
+	µ=np.array([1.])
+	k=1
+
+	answer = np.array([1.5])
+	guess = uniform_barycentre_1D([x1,x2],[µ,µ],k)
+	assert precision_eq(answer,guess)
+
+
+def test_bary1d_diracs_weighted():
+	x1 = np.array([1.])
+	x2 = np.array([2.])
+	µ=np.array([1.])
+	k=1
+	weights = [0.9,0.1]
+
+	answer = np.array([1.10])
+	guess = uniform_barycentre_1D([x1,x2],[µ,µ],k,weights=weights)
+	assert precision_eq(answer,guess)
+
+
+def test_bary1d_mixedsizes():
+	x1 =[5.]
+	x2= [2.5,2.5,2.5]
+	K=1
+	µ1 = [1.]
+	µ2 = np.ones(len(x2))/len(x2)
+
+	answer = np.array([3.75])
+	guess = uniform_barycentre_1D([x1,x2],[µ1,µ2],K)
+	assert precision_eq(answer,guess)
+
+def test_bary1d_mixed_sizes2():
+	x1 =[1.0,1]
+	x2= [2.,2.0]
+	K=1
+	µ1 = [0.5,0.5]
+	answer = np.array([1.5])
+	guess = uniform_barycentre_1D([x1,x2],[µ1,µ1],K)
+	assert precision_eq(answer,guess)
+
+def test_bary1d_mixed_sizes3():
+	x1 =[1.0,1]
+	x2= [2.,2.0]
+	K=1
+	µ1 = [0.5,0.5]
+	µ2 = np.ones(len(x2))/len(x2)
+	answer = np.array([1.5])
+	guess = uniform_barycentre_1D([x1,x2],[µ1,µ2],K)
+	assert precision_eq(answer,guess)
+
+
+def test_bary1d_mixed_sizes2_weighted():
+	x1 =[1.0,1]
+	x2= [2.,2.0]
+	K=1
+	µ1 = [0.5,0.5]
+	weights = [0.9,0.1]
+	answer = np.array([1.1])
+	guess = uniform_barycentre_1D([x1,x2],[µ1,µ1],K,weights=weights)
+	assert precision_eq(answer,guess)
+
+#bary(ax,ay) = a bary(x,y)
+def test_bary1d_scalarmultiplication():
+	x1 = [3.0,6.0]
+	x2 = [-3.1,0.5]
+	K = 10
+	µ = [0.2,0.8]
+	weights = [0.5,0.5]
+
+	sx1 = [a*2 for a in x1]
+	sx2 = [a*2 for a in x2]
+	guess = uniform_barycentre_1D([sx1,sx2],[µ,µ],K,weights=weights)
+	guess_scaled = uniform_barycentre_1D([x1,x2],[µ,µ],K,weights=weights)*2
+
+	assert precision_eq(guess,guess_scaled)
+
+#bary(x+a,y+a) = a+bary
+def test_bary1d_scalaraddition():
+	x1 = [3.0,6.0]
+	x2 = [-3.1,0.5]
+	K = 10
+	µ = [0.2,0.8]
+	weights = [0.5,0.5]
+
+	ax1 = [a+2 for a in x1]
+	ax2 = [a+2 for a in x2]
+	guess = uniform_barycentre_1D([ax1,ax2],[µ,µ],K,weights=weights)
+	guess_scaled = uniform_barycentre_1D([x1,x2],[µ,µ],K,weights=weights)+2
+
+	assert precision_eq(guess,guess_scaled)
+
