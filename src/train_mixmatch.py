@@ -96,9 +96,6 @@ train_y  = pd.DataFrame.to_numpy(train_y[:n_labels]).reshape(-1,1)
 #unlabelled train set
 trainU  = scaler.transform(train_x[:n_labels])
 
-#which dataset is smaller
-
-
 
 #define model
 l2reg=1e-3
@@ -129,12 +126,6 @@ data_unlabelled = tf.data.Dataset.from_tensor_slices((trainU.astype(np.float32))
 data_unlabelled = data_unlabelled.shuffle(nu).repeat().batch(batch_size)
 it = iter(data_unlabelled)
 
-#mixmatch OT loss for training
-loss_fn = lambda Y,Yhat,Q,Qhat,reg: mixmatchloss_ot1d(Y,
-    Yhat,Q,Qhat,reg=reg,
-    niter=tf.constant(50),
-    epsilon=tf.constant(0.1,dtype=tf.float32),
-    p=tf.constant(1,dtype=tf.float32))
 
 #function to evaluate performance on validation set (MSE)
 def evaluate(val_metric = tf.keras.losses.MSE):
@@ -145,8 +136,9 @@ def evaluate(val_metric = tf.keras.losses.MSE):
 
 #training
 opt = tf.keras.optimizers.Adam()
-# epochs = 25000
-epochs = 20
+epochs = 25000
+#ramp up regularisation parameter throughout time
+regs = np.linspace(0,1000,num=epochs)
 
 for e in tqdm(range(epochs),desc="Epoch"):
     for step,batch in enumerate(data_labelled):
@@ -157,35 +149,26 @@ for e in tqdm(range(epochs),desc="Epoch"):
         #to prevent uneven sized batches in final batch
         Ubatch = Ubatch[:len(Xbatch)] 
 
-
         #perform mixmatch
         Xprime,Yprime,Uprime,Qprime = mixmatch_ot1d(model,Xbatch,
             Ybatch,Ubatch,stddev=0.01,alpha=0.75,K=1,naug=3)
-        breakpoint()
 
-        Qprime = tf.expand_dims(Qprime,axis=2)
-        Yprime = tf.expand_dims(Yprime,axis=2)
-        
-        Qprime = tf.cast(Qprime,tf.float32)
-        Yprime = tf.cast(Yprime,tf.float32)
-        reg = tf.constant(10.0,dtype = tf.float32)
+        Yprime = np.concatenate(Yprime).reshape(-1,1)
+        Qprime = np.concatenate(Qprime).reshape(-1,1)
+
+        reg = tf.constant(regs[e],dtype = tf.float32)
 
         #on first epoch lossx approx 5 lossu approx 0.5
         with tf.GradientTape() as tape:
 
             predx = model(Xprime)
             predu = model(Uprime)
-
-            #expand dimensions for loss function in parallel
-            predx = tf.expand_dims(predx,axis=2)
-            predu = tf.expand_dims(predu,axis=2)
-
-            loss = loss_fn(Yprime,predx,Qprime,predu,reg)
+            loss = mixmatchloss_1d(Yprime,predx,Qprime,predu,reg=reg)
 
         #calculate gradients and update
         gradients = tape.gradient(loss ,model.trainable_weights)
         opt.apply_gradients(zip(gradients,model.trainable_weights))
-        print("done step 2 ")
+
     #write train and validation losses (Wasserstein/ MSE r.) to tensorboard
     with tsw.as_default():
         tf.summary.scalar('train loss', loss, step=e)
