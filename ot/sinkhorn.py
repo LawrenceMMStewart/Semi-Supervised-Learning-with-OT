@@ -12,10 +12,11 @@ import matplotlib.pyplot as plt
 
 
 
+
 def cost_mat(X,Y,n,m,p):
     """
     Returns table of pointwise Eucildean Distances
-    C_ij=|| x_i - y_j ||^2
+    C_ij=|| x_i - y_j ||^p
 
     Parameters
     ----------
@@ -29,16 +30,21 @@ def cost_mat(X,Y,n,m,p):
     ---------
     C : (tensor) (n x m) 
     """
-    XX = tf.reduce_sum(tf.multiply(X,X),axis=1)
-    YY = tf.reduce_sum(tf.multiply(Y,Y),axis=1)
-    C1 = tf.transpose(tf.reshape(tf.tile(XX,[m]),[m,n]))
-    C2 = tf.reshape(tf.tile(YY,[n]),[n,m])
-    C3 = tf.transpose(tf.linalg.matmul(Y,tf.transpose(X)))
-    C = C1 + C2 - 2*C3;
-    if p == 2:
-        return C
-    else:
-        return tf.sqrt(C+10**(-3))**p
+
+    #sum over second dimension for each
+    X2=tf.reduce_sum(X**2,1) # (n,) 
+    Y2=tf.reduce_sum(Y**2,1) # (m,) 
+
+    #add axis 
+    X2=tf.expand_dims(X2,1)  #(n ,1)
+    Y2=tf.expand_dims(Y2,0) # (1,m)
+
+    #broadcast:
+    X2=tf.tile(X2,[1,m])
+    Y2=tf.tile(Y2,[n,1])
+
+    C = X2 +Y2-2.*X@tf.transpose(Y)
+    return tf.math.sqrt(C+10**(-6))**p
 
 
 def K_tild(u,v,n,m,C,epsilon):
@@ -89,10 +95,10 @@ def sinkhorn_cost_log(n,m,C,niter,epsilon):
     
 @tf.function
 def sinkhorn(X,Y,
-    p=tf.constant(2.0,dtype=tf.float32),
+    p=tf.constant(1.0,dtype=tf.float32),
     div=tf.constant(True),
-    niter=tf.constant(100),
-    epsilon=tf.constant(0.01,dtype=tf.float32)):
+    niter=tf.constant(150),
+    epsilon=tf.constant(0.1,dtype=tf.float32)):
     """
     Returns the sinkhorn loss or divergance calculated 
     using the logsumexp approach for uniform measures
