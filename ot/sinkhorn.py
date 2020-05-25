@@ -11,8 +11,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-
-
 def cost_mat(X,Y,n,m,p):
     """
     Returns table of pointwise Eucildean Distances
@@ -73,7 +71,8 @@ def sinkhorn_step_log(u,v,n,m,C,epsilon):
 
 def sinkhorn_cost_log(n,m,C,niter,epsilon):
     """
-    Calculates the log sinkhorn cost for uniform measures 
+    Calculates the log sinkhorn cost for uniform measures
+    cancelling gradient track until final iteration 
     """
     
     u = tf.zeros([n,1])
