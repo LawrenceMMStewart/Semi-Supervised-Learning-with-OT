@@ -125,7 +125,10 @@ def mixmatch_ot1d(model,X,Y,U,
 
 
 def mixmatchloss_ot1d(Y,Yhat,Q,Qhat,
-	reg=100,niter=10,epsilon=0.01,p=2):
+	reg=tf.constant(0.1,dtype=tf.float32),
+	niter=tf.constant(75),
+	epsilon=tf.constant(0.1,dtype=tf.float32),
+	p=tf.constant(1,dtype=tf.float32)):
 	"""
 	Mixmatch loss function via 1D OT:
 
@@ -137,10 +140,10 @@ def mixmatchloss_ot1d(Y,Yhat,Q,Qhat,
 	Yhat : array (n,) of arrays of size (1,1) float32
 	Q : array (n,) of varied size arrays float32
 	Qhat : array (n,) of arrays of size (1,1) float32
-	reg : float (regularisation for consistancy term)
-	niter : int (number of iterations of sinkhorn)
-	epsilon : float (sinkhorn reg param)
-	p : float (cost matrix power)
+	reg : tf.float32 (regularisation for consistancy term)
+	niter : tf.int (number of iterations of sinkhorn)
+	epsilon : tf.float32 (sinkhorn reg param)
+	p : tf.float32 (cost matrix power)
 
 	Output
 	---------
@@ -149,24 +152,48 @@ def mixmatchloss_ot1d(Y,Yhat,Q,Qhat,
 
 	"""
 
-	ns_y = [y.shape[0] for y in Y]
-	ns_yhat = np.ones(len(Yhat)).astype(np.int)
-
-	ns_q = [q.shape[0] for q in Q]
-	ns_qhat = np.ones(len(Qhat)).astype(np.int)
-
-	SH = lambda n,m,X,Y : sinkhorn(n,m,X,Y,p,True,
+	SH = lambda X,Y : sinkhorn(X,Y,p=p,
 		niter=niter,epsilon=epsilon)
 
-	lossesx = list(map(SH,ns_y,ns_yhat,Y,Yhat))
-	lossesu = list(map(SH,ns_q,ns_qhat,Q,Qhat))
+	lossesx = list(map(SH,Y,Yhat))
+	lossesu = list(map(SH,Q,Qhat))
 
 	lossx = tf.reduce_mean(lossesx)
 	lossu = tf.reduce_mean(lossesu)
 
-	out = lossx + reg*lossu
+	out = lossx +reg*lossu
 
 	return out
+
+
+@tf.function
+def mixmatchloss_1d(Y,Yhat,Q,Qhat):
+	"""
+	Mixmatch loss function for K=1 labels
+
+	MSE(Y,Yhat) + reg* MSE(Q,Qhat)
+
+	Parameters
+	----------
+	Y : array (n,) of varied size arrays float32
+	Yhat : array (n,) of arrays of size (1,1) float32
+	Q : array (n,) of varied size arrays float32
+	Qhat : array (n,) of arrays of size (1,1) float32
+	Output
+	---------
+
+	out : float.32
+
+	"""
+	mse = tf.keras.losses.MSE
+
+	lossesx = mse(Y,Yhat)
+	lossesu = mse(Q,Qhat)
+
+	lossx = tf.reduce_mean(lossesx)
+	lossu = tf.reduce_mean(lossesu)
+
+	return lossx,lossu
 
 
 #example of loss function
