@@ -24,7 +24,7 @@ np.random.seed(123)
 tf.random.set_seed(123)
 
 #args = number of labels to train on
-parser = argparse.ArgumentParser(description = "Sinkhorn Batch Imputation for 3D Dataset")
+parser = argparse.ArgumentParser(description = "Training Arguements")
 parser.add_argument("dataset",help="Options = wine,",type=str)
 parser.add_argument("noise_amp",help="amplitude of noise",type=float)
 args = parser.parse_args()

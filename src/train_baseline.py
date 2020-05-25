@@ -1,5 +1,5 @@
 """
-File: model_baseline
+File: train_baseline
 Description: This file trains a MLP on the wine dataset, with varied amounts of
 labels available in order to establish a baseline for the model.
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
@@ -21,7 +21,7 @@ np.random.seed(123)
 tf.random.set_seed(123)
 
 #args = number of labels to train on
-parser = argparse.ArgumentParser(description = "Sinkhorn Batch Imputation for 3D Dataset")
+parser = argparse.ArgumentParser(description = "Training Arguements")
 parser.add_argument("dataset",help="Options = wine,")
 parser.add_argument("n_labels",
 	help = "Number of labels to train on [4000,2000,1000,500,250]",
