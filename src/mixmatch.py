@@ -182,7 +182,7 @@ def mixmatchloss_1d(Y,Yhat,Q,Qhat):
 	Output
 	---------
 
-	out : float.32
+	lossx,
 
 	"""
 	mse = tf.keras.losses.MSE

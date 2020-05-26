@@ -27,14 +27,17 @@ tf.random.set_seed(123)
 parser = argparse.ArgumentParser(description = "Training Arguements-")
 parser.add_argument("dataset",
     help="Options = wine,")
+parser.add_argument("device",
+    help="options = [GPU:x,CPU:0]")
 parser.add_argument("n_labels",
     help = "Number of labels to train on [4000?,2000,1000,500,250]",
     type = int)
-parser.add_argument("device",
-    help="options = [GPU:x,CPU:0]")
 parser.add_argument("batch_size",
     help = "batch size",
     type = int )
+parser.add_argument("max_reg",
+    help = "maximum value regularisation parameter for Lu reaches (e.g 25)",
+    type=float)
 args = parser.parse_args()
 
 #define the device
@@ -50,7 +53,7 @@ with tf.device(dev):
     dname = args.dataset
     n_labels = args.n_labels
     batch_size = args.batch_size
-    run_tag = "n"+str(n_labels)+"-b"+str(batch_size)
+    run_tag = "n"+str(n_labels)+"-b"+str(batch_size)+"-r"+str(args.max_reg)
 
     #save losses to tensorboard
     run_name = run_tag + "-"+datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -136,16 +139,16 @@ with tf.device(dev):
     def evaluate(val_metric = tf.keras.losses.MSE):
         pred = model(test)
         losses = val_metric(pred,test_y)
-        mloss = tf.reduce_sum(losses)
+        mloss = tf.reduce_mean(losses)
         return mloss
 
     #training
     opt = tf.keras.optimizers.Adam()
-    # epochs = 25000
-    epochs =100
+    epochs = 25000
+
     
     #ramp up regularisation parameter throughout time
-    regs = np.linspace(0,25,num=epochs)
+    regs = np.linspace(0,args.max_reg,num=epochs)
 
     for e in tqdm(range(epochs),desc="Epoch"):
         for step,batch in enumerate(data_labelled):
