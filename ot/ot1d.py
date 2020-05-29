@@ -12,6 +12,36 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 
 
+def cost_mat(X,Y,n,m,p=2):
+    """
+    Returns table of pointwise Eucildean Distances
+    C_ij=|| x_i - y_j ||^2
+
+    Parameters
+    ----------
+    X : (tensor) (n x p) 
+    Y : (tensor) (m x p)
+    n : int
+    m : int 
+    p : int
+
+    Output
+    ---------
+    C : (tensor) (n x m) 
+    """
+    XX = tf.reduce_sum(tf.multiply(X,X),axis=1)
+    YY = tf.reduce_sum(tf.multiply(Y,Y),axis=1)
+    C1 = tf.transpose(tf.reshape(tf.tile(XX,[m]),[m,n]))
+    C2 = tf.reshape(tf.tile(YY,[n]),[n,m])
+    C3 = tf.transpose(tf.linalg.matmul(Y,tf.transpose(X)))
+    C = C1 + C2 - 2*C3;
+    if p == 2:
+        return C
+    else:
+        return tf.sqrt(C+10**(-6))**p
+
+
+
 @tf.function
 def optimal_assignment_1D(X,Y,p):
 	"""
@@ -60,7 +90,7 @@ def transport_to_uniform_1D(µ,k):
 	for i in range(n):
 
 		earth = µ[i]
-		while earth>1e-15: #not zero as reccurring can 
+		while earth>1e-6: #not zero as reccurring can 
 							#cause problems
 
 			#case 1) can push all earth
@@ -132,12 +162,45 @@ def uniform_barycentre_1D(xlist,µlist,K,weights=None):
 
 
 
+def tf_transport_to_uniform_1D(µ,k):
+    return tf.numpy_function(transport_to_uniform_1D,[µ,k],tf.float32)
+
+
+
+def Wasserstein1d_uniform(x,y,
+	p=tf.constant(2,dtype=tf.float32)):
+	"""
+	Wasserstein distance between two uniform 
+	measures in 1d x,y
+	"""
+	x = tf.sort(x)
+	y = tf.sort(y)
+	
+	n = tf.constant(len(x))
+	m = tf.constant(len(y))
+
+	x = tf.reshape(x,[-1,1])
+	y = tf.reshape(y,[-1,1])
+
+	µ = tf.ones((n,1),dtype=tf.float32)/tf.cast(n,tf.float32)
+
+
+	T = tf.cast(tf_transport_to_uniform_1D(µ,m),tf.float32)
+
+	C = cost_mat(x,y,n,m,p)
+
+	return tf.reduce_sum(C*T)
+
+
+
 
 
 
 
 #an example 
 if __name__=="__main__":
+
+
 
 	#test case on uniform distributions
 	x1 = np.sort(np.random.uniform(1,2,100))
