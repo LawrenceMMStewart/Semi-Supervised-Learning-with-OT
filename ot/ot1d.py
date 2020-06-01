@@ -38,7 +38,7 @@ def cost_mat(X,Y,n,m,p=2):
     if p == 2:
         return C
     else:
-        return tf.sqrt(C+10**(-6))**p
+        return tf.sqrt(C+10**(-12))**p
 
 
 
@@ -167,27 +167,44 @@ def tf_transport_to_uniform_1D(µ,k):
 
 
 
-def Wasserstein1d_uniform(x,y,
-	p=tf.constant(2,dtype=tf.float32)):
+def Wasserstein1d_uniform(x,y,p=tf.constant(2,dtype=tf.float32)):
 	"""
-	Wasserstein distance between two uniform 
-	measures in 1d x,y
+	Computes W_p(µ,v) the earth mover distance
+	where µ and v are two uniform measures
+	with supports x and y respectively.
+
+	Parameters
+	----------
+	x : tensor size n tf.float32
+	y : tensor size m tf.float32
+	p : tensor size 1 tf.float32
+
+	Output
+	-------
+	W : tensor size 1 tf.float32
 	"""
-	x = tf.sort(x)
-	y = tf.sort(y)
+
+	#sort x (using argsort so gradients are defined)
+	xindicies = tf.argsort(x)
+	xsorted = tf.gather(x,xindicies)
+	#sort y (using argsort so gradients are defined)
+	yindicies = tf.argsort(y)
+	ysorted  = tf.gather(y,yindicies)
 	
+	#sizes of x and y 
 	n = tf.constant(len(x))
 	m = tf.constant(len(y))
 
-	x = tf.reshape(x,[-1,1])
-	y = tf.reshape(y,[-1,1])
+	#reshape x and y for cost matrix function
+	xsorted = tf.reshape(xsorted,[-1,1])
+	ysorted = tf.reshape(ysorted,[-1,1])
 
+	#uniform measure weights for x 
 	µ = tf.ones((n,1),dtype=tf.float32)/tf.cast(n,tf.float32)
-
-
+	# T = transport map from x-> y 
 	T = tf.cast(tf_transport_to_uniform_1D(µ,m),tf.float32)
-
-	C = cost_mat(x,y,n,m,p)
+	# C = euclidean p cost matrix
+	C = cost_mat(xsorted,ysorted,n,m,p)
 
 	return tf.reduce_sum(C*T)
 
