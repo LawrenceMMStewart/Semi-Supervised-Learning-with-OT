@@ -123,49 +123,6 @@ def mixmatch_ot1d(model,X,Y,U,
 	return Xprime,Yprime,Uprime,Qprime
 
 
-
-def mixmatchloss_ot1d(Y,Yhat,Q,Qhat,
-	reg=tf.constant(0.1,dtype=tf.float32),
-	niter=tf.constant(75),
-	epsilon=tf.constant(0.1,dtype=tf.float32),
-	p=tf.constant(1,dtype=tf.float32)):
-	"""
-	Mixmatch loss function via 1D OT:
-
-	loss = 1/n sum_i W_p(y_i,yhat_i) + reg * 1/n sum_i W_p(q_i,qhat_i)
-
-	Parameters
-	----------
-	Y : array (n,) of varied size arrays float32
-	Yhat : array (n,) of arrays of size (1,1) float32
-	Q : array (n,) of varied size arrays float32
-	Qhat : array (n,) of arrays of size (1,1) float32
-	reg : tf.float32 (regularisation for consistancy term)
-	niter : tf.int (number of iterations of sinkhorn)
-	epsilon : tf.float32 (sinkhorn reg param)
-	p : tf.float32 (cost matrix power)
-
-	Output
-	---------
-
-	out : float.32
-
-	"""
-
-	SH = lambda X,Y : sinkhorn(X,Y,p=p,
-		niter=niter,epsilon=epsilon)
-
-	lossesx = list(map(SH,Y,Yhat))
-	lossesu = list(map(SH,Q,Qhat))
-
-	lossx = tf.reduce_mean(lossesx)
-	lossu = tf.reduce_mean(lossesu)
-
-	out = lossx +reg*lossu
-
-	return out
-
-
 @tf.function
 def mixmatchloss_1d(Y,Yhat,Q,Qhat):
 	"""
@@ -196,9 +153,56 @@ def mixmatchloss_1d(Y,Yhat,Q,Qhat):
 	return lossx,lossu
 
 
+
+
+
+def mixmatchloss_ot(Y,Yhat,Q,Qhat,
+	p=tf.constant(2,dtype=tf.float32)):
+	"""
+
+	Mixmatch loss function using 1D OT:
+
+	loss = 1/n sum_i W_p(y_i,yhat_i) + reg * 1/n sum_i W_p(q_i,qhat_i)
+
+	Parameters
+	----------
+	Y : array/list (n,) of varied size arrays float32
+	Yhat : array/list (n,) of varied size arrays float32
+	Q : array (m,)/list of varied size arrays float32
+	Qhat : array (m,)/list of varied size arrays float32
+	p : tf.float32 
+
+	Output
+	---------
+
+	lossx : tf.float32
+	lossu : tf.float32
+
+	"""
+
+	Wp = lambda X,Y : Wasserstein1d_uniform(X,Y,p=p)
+
+	lossesx = list(map(Wp,Y,Yhat))
+	lossesu = list(map(Wp,Q,Qhat))
+
+	lossx = tf.reduce_mean(lossesx)
+	lossu = tf.reduce_mean(lossesu)
+
+
+	return lossx,lossu
+
+
+
+
+
+
+
 #example of loss function
 if __name__=="__main__":
 	
+
+
+	# optimakl transport mixmatch loss example
 	y1 = np.array([[1.0],[1.1],[1.3]]).astype(np.float32)
 	y2 = np.array([[3.0],[2.95],[3.1]]).astype(np.float32)
 	Y = np.array([y1,y2])
@@ -213,7 +217,10 @@ if __name__=="__main__":
 
 
 
-	print(mixmatchloss_ot1d(Y,Yhat,Q,Qhat))
+	lx,lu = mixmatchloss_ot(Y,Y,Q,Qhat)
+
+	print("lx = ",lx)
+	print("lu = ",lu)
 
 
 

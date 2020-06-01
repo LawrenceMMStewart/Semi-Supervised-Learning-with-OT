@@ -10,6 +10,7 @@ import tensorflow as tf
 from src.mixmatch import * 
 np.random.seed(123)
 
+#test mixmatch 
 def test_mixmatch_ot1d_dim():
 
 	#data X  = ones  (3,5)
@@ -48,3 +49,61 @@ def test_mixmatchloss_1d():
 
 	answer = tf.constant(0.5)+0.1*tf.constant(0.5)
 	assert guess==answer
+
+#mix match loss (x,x) (q,q) = 0
+def test_mixmatchloss_ot_d1():
+	y1 = np.array([[1.0],[1.1],[1.3]]).astype(np.float32)
+	y2 = np.array([[3.0],[2.95],[3.1]]).astype(np.float32)
+	Y = np.array([y1,y2])
+	
+
+	q1 = np.array([[2.0],[2.01],[1.987]]).astype(np.float32)
+	q2 = np.array([[5.1],[5.13],[5.09]]).astype(np.float32)
+	Q = np.array([q1,q2])
+
+
+	lx, lu = mixmatchloss_ot(Y,Y,Q,Q)
+
+	assert lx == 0  
+	assert lu == 0 
+
+
+#mix match loss (x,x) (q,q) = 0
+def test_mixmatchloss_ot_d2():
+	y1 = np.array([[1.0],[1.1],[1.3]]).astype(np.float32)
+	y2 = np.array([[3.0],[2.95],[3.1]]).astype(np.float32)
+	Y = np.array([y1,y2])
+	
+
+	q1 = np.array([[2.0],[2.01],[1.987]]).astype(np.float32)
+	q2 = np.array([[5.1],[5.13],[5.09]]).astype(np.float32)
+	Q = np.array([q1,q2])
+
+	Qhat = tf.constant([ [[2.15]],[[5.76]] ],dtype=tf.float32)
+	Yhat = tf.constant([[[1.0]],[[3.0]]],dtype=tf.float32)
+
+	lx1, lu1 = mixmatchloss_ot(Y,Yhat,Q,Qhat)
+	lx2, lu2 = mixmatchloss_ot(Yhat,Y,Qhat,Q)
+
+	assert lx1 == lx2 
+	assert lu1 == lu2
+
+
+def test_mixmatchloss_ot_exact():
+	x = tf.constant([[0.]],dtype=tf.float32)
+	y = tf.constant([[-0.5],[0.5]],dtype=tf.float32)
+
+	Y = [x,x]
+	Yhat = [y,y]
+
+	q = tf.ones((9,1),dtype=tf.float32)
+	q2 = tf.zeros((6,1),dtype=tf.float32)
+	Q = [q,q2]
+
+	Qhat = [q,q2]
+
+	lx,lu = mixmatchloss_ot(Y,Yhat,Q,Qhat)
+	assert lx ==0.25
+	assert lu ==0
+
+	
