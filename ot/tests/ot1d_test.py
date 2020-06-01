@@ -7,6 +7,9 @@ import numpy as np
 def precision_eq(a,b):
 	return (np.abs(a-b)<1e-14).all()
 
+def tensor_precision(a,b):
+	return tf.reduce_sum((a-b)**2)<1e-14
+
 def test_ttu1d_5k():
 	#tests transform to uniform 1d
 	µ1 = np.array([0.2,0.5,0.3])
@@ -35,7 +38,16 @@ def test_ttu1d_2k():
 		[0,0.3]])
 	guess = transport_to_uniform_1D(µ1,k)
 	assert precision_eq(guess,answer)	
-	
+
+def test_ttu1d_remainder():
+
+	µ1 = np.array([[0.2],[0.5],[0.3]])
+	k=5
+	guess = transport_to_uniform_1D(µ1,k)
+	answer = np.array([[0.2, 0., 0., 0., 0.],
+       [0., 0.2, 0.2, 0.1, 0.],
+       [0., 0., 0., 0.1, 0.2]])
+	assert precision_eq(guess,answer)
 	
 def test_bary1d_222():
 	µ1= np.array([0.8,0.2])
@@ -175,4 +187,36 @@ def test_bary1d_scalaraddition():
 	guess_scaled = uniform_barycentre_1D([x1,x2],[µ,µ],K,weights=weights)+2
 
 	assert precision_eq(guess,guess_scaled)
+
+
+# W(a,a)=0
+def test_wasserstein1d_uniform_d1():
+
+	x = tf.reshape(tf.constant([-1.0,-2.0,2.0],dtype=tf.float32),[-1,1])
+	answer = tf.constant(0.0,dtype=tf.float32)
+	guess = Wasserstein1d_uniform(x,x)
+	assert tensor_precision(guess,answer)
+
+#W(a,b)=W(b,a)
+def test_wasserstein1d_uniform_d2():
+	x = tf.reshape(tf.constant([-1.0,-2.0,2.0],dtype=tf.float32),[-1,1])
+	y = tf.reshape(tf.constant([5.0,-1.0,7.0],dtype = tf.float32),[-1,1])
+	
+	wxy = Wasserstein1d_uniform(x,y)
+	wyx = Wasserstein1d_uniform(y,x)
+	assert tensor_precision(wxy,wyx)
+
+#trivial example
+def test_wasserstein1d_uniform_exact():
+
+	x = tf.constant([[0.]],dtype=tf.float32)
+	y = tf.constant([[-0.5],[0.5]],dtype=tf.float32)
+
+	w2 = Wasserstein1d_uniform(x,y)
+	w1 = Wasserstein1d_uniform(x,y,p=tf.constant(1,dtype=tf.float32))
+
+	assert(tensor_precision(w2,0.25))
+	assert(tensor_precision(w1,0.5))
+
+
 

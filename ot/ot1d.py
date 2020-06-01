@@ -175,9 +175,9 @@ def Wasserstein1d_uniform(x,y,p=tf.constant(2,dtype=tf.float32)):
 
 	Parameters
 	----------
-	x : tensor size n tf.float32
-	y : tensor size m tf.float32
-	p : tensor size 1 tf.float32
+	x : tensor size (n,1) tf.float32
+	y : tensor size (m,1) tf.float32
+	p : tf.float32
 
 	Output
 	-------
@@ -185,19 +185,17 @@ def Wasserstein1d_uniform(x,y,p=tf.constant(2,dtype=tf.float32)):
 	"""
 
 	#sort x (using argsort so gradients are defined)
-	xindicies = tf.argsort(x)
+	xindicies = tf.argsort(tf.reshape(x,[-1]))
 	xsorted = tf.gather(x,xindicies)
+
 	#sort y (using argsort so gradients are defined)
-	yindicies = tf.argsort(y)
+	yindicies = tf.argsort(tf.reshape(y,[-1]))
 	ysorted  = tf.gather(y,yindicies)
 	
 	#sizes of x and y 
 	n = tf.constant(len(x))
 	m = tf.constant(len(y))
 
-	#reshape x and y for cost matrix function
-	xsorted = tf.reshape(xsorted,[-1,1])
-	ysorted = tf.reshape(ysorted,[-1,1])
 
 	#uniform measure weights for x 
 	µ = tf.ones((n,1),dtype=tf.float32)/tf.cast(n,tf.float32)
