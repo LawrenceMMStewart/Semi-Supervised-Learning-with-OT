@@ -68,7 +68,7 @@ def test_mixmatchloss_ot_d1():
 	assert lu == 0 
 
 
-#mix match loss (x,x) (q,q) = 0
+#mix match loss (x,y) = (y,x) (q,p) = (p,q)
 def test_mixmatchloss_ot_d2():
 	y1 = np.array([[1.0],[1.1],[1.3]]).astype(np.float32)
 	y2 = np.array([[3.0],[2.95],[3.1]]).astype(np.float32)
