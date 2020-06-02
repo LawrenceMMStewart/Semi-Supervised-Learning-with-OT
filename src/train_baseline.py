@@ -33,12 +33,13 @@ parser.add_argument("batch_size",
 	type =int)
 args = parser.parse_args()
 
-#define the device
-dev = "/"+args.device
-#if GPU lock to single device:
-if dev != "/CPU:0":
-    os.environ["CUDA_VISIBLE_DEVICES"]=dev[-1]
-
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if args.device == "CPU:0":
+    dev = "/"+args.device
+else:
+    gid = int(args.device[-1])
+    tf.config.experimental.set_visible_devices(gpus[gid], 'GPU')
+    dev = tf.config.experimental.list_logical_devices('GPU')[0]
 
 
 with tf.device(dev):

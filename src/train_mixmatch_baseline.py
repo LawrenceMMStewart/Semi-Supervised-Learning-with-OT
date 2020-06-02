@@ -1,6 +1,9 @@
 """
-File: train_mixmatch 
+File: train_mixmatch_baseline
 Description: Train MLP in semi-supervised setting using mixmatch (ot 1d approach)
+This file deals with the case where K = 1 i.e.
+1) Wasserstein reduces to MSE
+2) Barycentre reduces to mean 
 Author Lawrence Stewart <lawrence.stewart@ens.fr>
 License: Mit License 
 """
@@ -53,7 +56,7 @@ with tf.device(dev):
 
     #save losses to tensorboard
     run_name = run_tag + "-"+datetime.now().strftime("%Y%m%d-%H%M%S")
-    logdir = os.path.join("src","logs",dname,"mixmatch",run_name)
+    logdir = os.path.join("src","logs",dname,"mixmatch","baseline",run_name)
 
 
     #tensorboard paths 
@@ -199,7 +202,7 @@ with tf.device(dev):
 
     #save model
     save_path = os.path.join("src","models",dname,
-        "mixmatch",run_tag)
+        "mixmatch","baseline",run_tag)
     model.save(save_path)
 
 

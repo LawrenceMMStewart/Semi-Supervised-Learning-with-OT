@@ -9,7 +9,6 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
@@ -38,14 +37,13 @@ parser.add_argument("batch_size",
 parser.add_argument("max_reg",
     help = "maximum value regularisation parameter for Lu reaches (e.g 25)",
     type=float)
+parser.add_argument("K",
+    help = "Number of points for uniform approximation of Barycentre",
+    type = int)
 args = parser.parse_args()
 
-#define the device
-dev = "/"+args.device
-#if GPU lock to single device:
-if dev != "/CPU:0":
-    os.environ["CUDA_VISIBLE_DEVICES"]=dev[-1]
 
+dev = "/"+args.device
 
 
 with tf.device(dev):
@@ -53,11 +51,11 @@ with tf.device(dev):
     dname = args.dataset
     n_labels = args.n_labels
     batch_size = args.batch_size
-    run_tag = "n"+str(n_labels)+"-b"+str(batch_size)+"-r"+str(args.max_reg)
+    run_tag = "n"+str(n_labels)+"-b"+str(batch_size)+"-r"+str(args.max_reg)+"-K"+str(args.K)
 
-    #save losses to tensorboard
+    # save losses to tensorboard
     run_name = run_tag + "-"+datetime.now().strftime("%Y%m%d-%H%M%S")
-    logdir = os.path.join("src","logs",dname,"mixmatch",run_name)
+    logdir = os.path.join("src","logs",dname,"mixmatch","ot",run_name)
 
 
     #tensorboard paths 
@@ -147,8 +145,14 @@ with tf.device(dev):
     epochs = 25000
 
     
-    #ramp up regularisation parameter throughout time
-    regs = np.linspace(0,args.max_reg,num=epochs)
+    #ramp up regularisation parameter throughout time 
+    #maxing out at 16000 iterations (as in mixmatch paper)
+    reach_max = 16000
+
+
+    regsramp = np.linspace(0,args.max_reg,num=reach_max)
+    regsflat = np.ones(epochs-reach_max)*args.max_reg
+    regs = np.concatenate((regsramp,regsflat))
 
     for e in tqdm(range(epochs),desc="Epoch"):
         for step,batch in enumerate(data_labelled):
@@ -161,18 +165,18 @@ with tf.device(dev):
 
             #perform mixmatch
             Xprime,Yprime,Uprime,Qprime = mixmatch_ot1d(model,Xbatch,
-                Ybatch,Ubatch,stddev=0.01,alpha=0.75,K=1,naug=3)
+                Ybatch,Ubatch,stddev=0.01,alpha=0.75,K=args.K,naug=20)
 
-            Yprime = np.concatenate(Yprime).reshape(-1,1)
-            Qprime = np.concatenate(Qprime).reshape(-1,1)
+
 
             reg = tf.constant(regs[e],dtype = tf.float32)
 
             #on first epoch lossx approx 5 lossu approx 0.5
             with tf.GradientTape() as tape:
 
-                predx = model(Xprime)
-                predu = model(Uprime)
+                predx = tf.expand_dims(model(Xprime),2)
+                predu = tf.expand_dims(model(Uprime),2)
+
                 lossx,lossu = mixmatchloss_1d(Yprime,predx,
                     Qprime,predu)
                 loss = lossx+reg*lossu
@@ -198,7 +202,7 @@ with tf.device(dev):
 
     #save model
     save_path = os.path.join("src","models",dname,
-        "mixmatch",run_tag)
+        "mixmatch","ot",run_tag)
     model.save(save_path)
 
 
