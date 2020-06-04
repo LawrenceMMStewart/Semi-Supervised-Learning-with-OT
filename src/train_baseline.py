@@ -10,12 +10,10 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn import preprocessing
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
+from datasets.dataload import *
 import os
 import argparse 
+
 #seed the RNG 
 np.random.seed(123)
 tf.random.set_seed(123)
@@ -26,7 +24,7 @@ parser.add_argument("dataset",help="Options = wine,")
 parser.add_argument("device",
     help="options = [GPU:x,CPU:0]")
 parser.add_argument("n_labels",
-	help = "Number of labels to train on [4000,2000,1000,500,250]",
+	help = "Number of labels to train on",
 	type = int)
 parser.add_argument("batch_size",
 	help="batch size for training [64,128,256]",
@@ -53,25 +51,13 @@ with tf.device(dev):
 	logdir = os.path.join("src","logs",dname,"baseline",run_tag)
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
 
-	#initialisations for dataset
-	scaler = MinMaxScaler()  
-	if dname =="wine":
-		path = os.path.join("datasets","wine","winequality-white.csv")
-	data = pd.read_csv(path,sep=';')
-	X = data.drop(columns='quality')
-	Y = data['quality']
-	#fit the scaler to X 
-	scaler.fit(X)
+	if dname == "wine":
+		train,test,train_y,test_y = load_wine()
+	if dname =="diabetes":
+		train,test,train_y,test_y = load_diab()
+	if dname =="housing":
+		train,test,train_y,test_y = load_housing()
 
-	#split into train and test sets
-	train_x,test_x,train_y,test_y = train_test_split(X,Y,
-		random_state = 0, stratify = Y,shuffle=True,
-		train_size=4000)
-
-	train  = scaler.transform(train_x)
-	test   = scaler.transform(test_x)
-	train_y  = pd.DataFrame.to_numpy(train_y).reshape(-1,1).astype(np.float32)
-	test_y  = pd.DataFrame.to_numpy(test_y).reshape(-1,1).astype(np.float32)
 
 	#only use an user-chosen amount of data for training
 	train = train[:n_labels]
@@ -94,7 +80,8 @@ with tf.device(dev):
 	model.summary()
 	#create a callback that saves models weights after training
 
-	model.compile(optimizer="adam",loss=loss_fun)
+	model.compile(optimizer="adam",loss=loss_fun,
+		metrics=[tf.keras.metrics.RootMeanSquaredError()])
 
 	epochs=25000
 

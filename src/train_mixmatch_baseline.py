@@ -33,13 +33,16 @@ parser.add_argument("dataset",
 parser.add_argument("device",
     help="options = [GPU:x,CPU:0]")
 parser.add_argument("n_labels",
-    help = "Number of labels to train on [4000?,2000,1000,500,250]",
+    help = "Number of labels to train on",
     type = int)
 parser.add_argument("batch_size",
     help = "batch size",
     type = int )
 parser.add_argument("max_reg",
     help = "maximum value regularisation parameter for Lu reaches (e.g 25)",
+    type=float)
+parser.add_argument("noise_amp",
+    help = "amplitude of noise for mixmatch",
     type=float)
 args = parser.parse_args()
 
@@ -52,7 +55,7 @@ with tf.device(dev):
     dname = args.dataset
     n_labels = args.n_labels
     batch_size = args.batch_size
-    run_tag = "n"+str(n_labels)+"-b"+str(batch_size)+"-r"+str(args.max_reg)
+    run_tag = "n"+str(n_labels)+"-b"+str(batch_size)+"-r"+str(args.max_reg)+"-a"+str(args.noise_amp)
 
     #save losses to tensorboard
     run_name = run_tag + "-"+datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -73,36 +76,20 @@ with tf.device(dev):
     regulariser_w = tf.summary.create_file_writer(regulariser_path)
 
 
-
-    #initialisations for dataset
-    scaler = MinMaxScaler()  
-    if dname =="wine":
-        path = os.path.join("datasets","wine","winequality-white.csv")
-    data = pd.read_csv(path,sep=';')
-    X = data.drop(columns='quality')
-    Y = data['quality']
-    #fit the scaler to X 
-    scaler.fit(X)
-
-    #split into train and test sets
-    train_x,test_x,train_y,test_y = train_test_split(X,Y,
-        random_state = 0, stratify = Y,shuffle=True,
-        train_size=4000)
+    if dname == "wine":
+        train,test,train_y,test_y = load_wine()
 
 
-    #note that when batching there maybe excess data with uneven batches
-
-    #create test set 
-    test   = scaler.transform(test_x)
-    test_y  = pd.DataFrame.to_numpy(test_y).reshape(-1,1).astype(np.float32)
+    #only use an user-chosen amount of data for training
+    train = train[:n_labels]
+    train_y = train_y[:n_labels]
 
     #labelled train set
-    trainX  = scaler.transform(train_x[:n_labels])
-    train_y  = pd.DataFrame.to_numpy(train_y[:n_labels]).reshape(-1,1)
+    trainX  = train[:n_labels]
+    train_y  = train_y[:n_labels]
 
     #unlabelled train set
-    trainU  = scaler.transform(train_x[:n_labels])
-
+    trainU  = train[n_labels:]
 
     #define model
     l2reg=1e-3
@@ -165,7 +152,7 @@ with tf.device(dev):
 
             #perform mixmatch
             Xprime,Yprime,Uprime,Qprime = mixmatch_ot1d(model,Xbatch,
-                Ybatch,Ubatch,stddev=0.01,alpha=0.75,K=1,naug=3)
+                Ybatch,Ubatch,stddev=args.noise_amp,alpha=0.75,K=1,naug=3)
 
             Yprime = np.concatenate(Yprime).reshape(-1,1)
             Qprime = np.concatenate(Qprime).reshape(-1,1)
