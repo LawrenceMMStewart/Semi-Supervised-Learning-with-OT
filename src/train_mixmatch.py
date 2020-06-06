@@ -13,6 +13,7 @@ from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.python.client import device_lib
+from datasets.dataload import *
 import os
 import argparse 
 from src.mixmatch import *
@@ -52,18 +53,6 @@ args = parser.parse_args()
 dev = "/"+args.device
 
 
-def create_name(varlist,taglist):
-    """
-    returns file name e.g. [10,2] ['n','m']
-    ---> n10-m2
-    """
-    assert len(varlist)==len(taglist)
-    run_tag = taglist[0]+str(varlist[0])
-    for i in range(1,len(varlist)):
-        run_tag+="-"+taglist[i]+str(varlist[i])
-    return run_tag
-
-
 with tf.device(dev):
 
     dname = args.dataset
@@ -77,38 +66,49 @@ with tf.device(dev):
 
     # save losses to tensorboard
     run_name = run_tag + "-"+datetime.now().strftime("%Y%m%d-%H%M%S")
-    logdir = os.path.join("src","logs",dname,"mixmatch","ot",run_name)
+    logdir = os.path.join("src","logs",dname,"mixmatch",run_name)
 
 
     #tensorboard paths 
     trainloss_path = os.path.join(logdir,"trainloss")
     mse_path = os.path.join(logdir,"mse")
     consistancy_path = os.path.join(logdir,"consistancy") 
-    validation_path = os.path.join(logdir,"validation")
+    validation_mse_path = os.path.join(logdir,"validation_mse")
+    validation_rmse_path = os.path.join(logdir,"validation_rmse")
     regulariser_path = os.path.join(logdir,"regulariser")
+
     #tensorboard writers 
     trainloss_w = tf.summary.create_file_writer(trainloss_path)
     mse_w = tf.summary.create_file_writer(mse_path)
     consistancy_w = tf.summary.create_file_writer(consistancy_path)
-    validation_w = tf.summary.create_file_writer(validation_path)
+    validation_mse_w = tf.summary.create_file_writer(validation_mse_path)
+    validation_rmse_w = tf.summary.create_file_writer(validation_rmse_path)
     regulariser_w = tf.summary.create_file_writer(regulariser_path)
 
 
 
     if dname == "wine":
+        #wine train has 4000 labels
         train,test,train_y,test_y = load_wine()
+        #for the wine dataset we consider 2000 points unlabelled
+        Umark = 2000
+
+    if dname == "housing":
+        #housing train has 450 labels
+        train,test,train_y,test_y = load_housing()
+
+    if dname == "diabetes":
+        #diabetes train has 375 labels
+        train,test,train_y,test_y = load_diab()
+
 
 
     #only use an user-chosen amount of data for training
-    train = train[:n_labels]
+    trainX = train[:n_labels]
     train_y = train_y[:n_labels]
 
-    #labelled train set
-    trainX  = train[:n_labels]
-    train_y  = train_y[:n_labels]
-
-    #unlabelled train set
-    trainU  = train[n_labels:]
+    #unlabelled data
+    trainU = train[-Umark:]
 
 
     #define model
@@ -130,12 +130,12 @@ with tf.device(dev):
     nx = trainX.shape[0]
     nu = trainU.shape[0]
 
-    #labelled data batched
+    #shuffle and batch X
     data_labelled = tf.data.Dataset.from_tensor_slices((trainX.astype(np.float32),
         train_y.astype(np.float32)))
     data_labelled = data_labelled.shuffle(nx).batch(batch_size)
 
-    #unlimited random stream of unlabelled data
+    #shuffle and batch U 
     data_unlabelled = tf.data.Dataset.from_tensor_slices((trainU.astype(np.float32)))
     data_unlabelled = data_unlabelled.shuffle(nu).repeat().batch(batch_size)
     it = iter(data_unlabelled)
@@ -145,16 +145,19 @@ with tf.device(dev):
     def evaluate(val_metric = tf.keras.losses.MSE):
         pred = model(test)
         losses = val_metric(pred,test_y)
-        mloss = tf.reduce_mean(losses)
-        return mloss
+        mse = tf.reduce_mean(losses)
+        rmse = tf.math.sqrt(mse)
+        return mse,rmse
 
     #training
     opt = tf.keras.optimizers.Adam()
     epochs = 25000
+
     
     #ramp up regularisation parameter throughout time 
     #maxing out at 16000 iterations (as in mixmatch paper)
     reach_max = 16000
+
 
 
     regsramp = np.linspace(0,args.max_reg,num=reach_max)
@@ -175,13 +178,16 @@ with tf.device(dev):
                 Ybatch,Ubatch,
                 stddev=args.noise_amp,alpha=0.75,K=args.K,naug=args.naug)
 
-
+            # mixmatch lables with dim (batch_size,K,1)
+            Yprime = tf.expand_dims(Yprime,2)
+            Qprime = tf.expand_dims(Qprime,2)
 
             reg = tf.constant(regs[e],dtype = tf.float32)
 
             #on first epoch lossx approx 5 lossu approx 0.5
             with tf.GradientTape() as tape:
 
+                # predictions with dim (batch_size,K,1)
                 predx = tf.expand_dims(model(Xprime),2)
                 predu = tf.expand_dims(model(Uprime),2)
 
@@ -201,16 +207,18 @@ with tf.device(dev):
             tf.summary.scalar('Lx',lossx, step=e)
         with consistancy_w.as_default():
             tf.summary.scalar('Lu',lossu, step=e)
+        val_mse,val_rmse = evaluate()
+        with validation_mse_w.as_default():
+            tf.summary.scalar('MSE Validation',val_mse, step=e)
+        with validation_rmse_w.as_default():
+            tf.summary.scalar('rMSE Validation',val_rmse, step=e)
         with regulariser_w.as_default():
             tf.summary.scalar("Regulariser",reg,step=e)
-        val_loss = evaluate()
-        with validation_w.as_default():
-            tf.summary.scalar('MSE Validation',val_loss, step=e)
         
 
     #save model
     save_path = os.path.join("src","models",dname,
-        "mixmatch","ot",run_tag)
+        "mixmatch",run_tag)
     model.save(save_path)
 
 
