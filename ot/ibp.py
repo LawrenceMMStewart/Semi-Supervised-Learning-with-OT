@@ -5,39 +5,11 @@ Liscence: Mit License
 """
 from functools import reduce
 import numpy as np
-import tensorflow as tf
 import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
 
 
-def cost_mat(X,Y,n,m,p=2):
-    """
-    Returns table of pointwise Eucildean Distances
-    C_ij=|| x_i - y_j ||^2
 
-    Parameters
-    ----------
-    X : (tensor) (n x p) 
-    Y : (tensor) (m x p)
-    n : int
-    m : int 
-    p : int
 
-    Output
-    ---------
-    C : (tensor) (n x m) 
-    """
-    XX = tf.reduce_sum(tf.multiply(X,X),axis=1)
-    YY = tf.reduce_sum(tf.multiply(Y,Y),axis=1)
-    C1 = tf.transpose(tf.reshape(tf.tile(XX,[m]),[m,n]))
-    C2 = tf.reshape(tf.tile(YY,[n]),[n,m])
-    C3 = tf.transpose(tf.linalg.matmul(Y,tf.transpose(X)))
-    C = C1 + C2 - 2*C3;
-    if p == 2:
-        return C
-    else:
-        return tf.sqrt(C+10**(-12))**p
 
 
 def IBP(hists,M,eps=0.1,weights=None,niter=100,tol=1e-13):
@@ -114,6 +86,39 @@ def avsharp(hists,T=0.5):
 
 
 if __name__ =="__main__":
+	import tensorflow as tf
+	import pandas as pd
+	import seaborn as sns
+	def cost_mat(X,Y,n,m,p=2):
+	    """
+	    Returns table of pointwise Eucildean Distances
+	    C_ij=|| x_i - y_j ||^2
+
+	    Parameters
+	    ----------
+	    X : (tensor) (n x p) 
+	    Y : (tensor) (m x p)
+	    n : int
+	    m : int 
+	    p : int
+
+	    Output
+	    ---------
+	    C : (tensor) (n x m) 
+	    """
+	    XX = tf.reduce_sum(tf.multiply(X,X),axis=1)
+	    YY = tf.reduce_sum(tf.multiply(Y,Y),axis=1)
+	    C1 = tf.transpose(tf.reshape(tf.tile(XX,[m]),[m,n]))
+	    C2 = tf.reshape(tf.tile(YY,[n]),[n,m])
+	    C3 = tf.transpose(tf.linalg.matmul(Y,tf.transpose(X)))
+	    C = C1 + C2 - 2*C3;
+	    if p == 2:
+	        return C
+	    else:
+	        return tf.sqrt(C+10**(-12))**p
+
+
+
 	#example 1 : simulating the softmax predictions of a neural network for 
 	#			 3 noisy augmentations of a data point, comparing the sharpening
 	# 			 vs barycentre approaches.
