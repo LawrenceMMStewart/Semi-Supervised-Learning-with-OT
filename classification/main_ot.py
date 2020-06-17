@@ -6,7 +6,7 @@ import tensorflow as tf
 import tqdm
 import yaml
 
-from mixmatch import mixmatch, semi_loss, linear_rampup, interleave, weight_decay, ema
+from mixmatch import mixmatch_ot,mixmatch, semi_loss,linear_rampup,interleave,weight_decay,ema
 from model import WideResNet
 from preprocess import fetch_dataset
 
@@ -63,8 +63,12 @@ def main():
     if args['config_path'] is not None and os.path.exists(os.path.join(dir_path, args['config_path'])):
         args = load_config(args)
     start_epoch = 0
-    log_path = f'./logs/classic/{args["dataset"]}@{args["labelled_examples"]}'
+    log_path = f'./logs/ot/{args["dataset"]}@{args["labelled_examples"]}'
     ckpt_dir = f'{log_path}/checkpoints'
+
+    #load the corresponding ground metric for OT
+    groundmetric_path  = "./groundmetrics/nm-"+args['dataset']+".npy"
+    groundmetric = np.load(groundmetric_path)
 
     datasetX, datasetU, val_dataset, test_dataset, num_classes = fetch_dataset(args, log_path)
 
@@ -98,7 +102,9 @@ def main():
     args['T'] = tf.constant(args['T'])
     args['beta'] = tf.Variable(0., shape=())
     for epoch in range(start_epoch, args['epochs']):
-        xe_loss, l2u_loss, total_loss, accuracy = train(datasetX, datasetU, model, ema_model, optimizer, epoch, args)
+        xe_loss, l2u_loss, total_loss, accuracy = train(datasetX, datasetU, model, ema_model, 
+            optimizer, epoch, args,groundmetric)
+
         val_xe_loss, val_accuracy = validate(val_dataset, ema_model, epoch, args, split='Validation')
         test_xe_loss, test_accuracy = validate(test_dataset, ema_model, epoch, args, split='Test')
 
@@ -132,7 +138,11 @@ def main():
             writer.flush()
 
 
-def train(datasetX, datasetU, model, ema_model, optimizer, epoch, args):
+def train(datasetX, datasetU, model, ema_model, optimizer, epoch, args,
+    M,eps=None,niter=200,tol=1e-7):
+    """
+    niter is for IBP ; groundcost is M, tol for convergance of IBP; eps = regularisation for IBP
+    """
     xe_loss_avg = tf.keras.metrics.Mean()
     l2u_loss_avg = tf.keras.metrics.Mean()
     total_loss_avg = tf.keras.metrics.Mean()
@@ -159,7 +169,8 @@ def train(datasetX, datasetU, model, ema_model, optimizer, epoch, args):
 
         args['beta'].assign(np.random.beta(args['alpha'], args['alpha']))
         # run mixmatch
-        XU, XUy = mixmatch(model, batchX['image'], batchX['label'], batchU['image'], args['T'], args['K'], args['beta'])
+        XU, XUy = mixmatch_ot(model, batchX['image'], batchX['label'], batchU['image'], args['T'], args['K'], args['beta'],
+            M,eps=eps,niter=niter,tol=tol)
         with tf.GradientTape() as tape:
             logits = [model(XU[0])]
             for batch in XU[1:]:
