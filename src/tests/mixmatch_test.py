@@ -24,31 +24,32 @@ def test_mixmatch_ot1d_dim():
 		stddev=0.0,K=30,naug=3)
 	
 	assert (Xprime<=x).all() 
-	assert (Uprime>=u).all()
+	assert (Uprime>=np.tile(u,[3,1])).all()
 	assert Xprime.shape == x.shape
-	assert Uprime.shape == u.shape
+	assert Uprime.shape[0] == 3*u.shape[0]
+	assert Uprime.shape[1]==u.shape[1]
 
-	assert len(y)==len(Yprime)
-	assert len(Qprime)==len(y)
+	assert len(Yprime)==len(y)
+	assert len(Qprime)==3*len(y)
 	assert len(Yprime[0])==30
 	assert len(Qprime[0])==30 
 
 
 
-#test mixmatchloss_1d (MSE loss is functional)
-def test_mixmatchloss_1d():
-	Y=  np.array([[1.],[2.]]).astype(np.float32)
-	Yhat=  np.array([[1.],[1.]]).astype(np.float32)
-	#mse(Y,Yhat)  = 0.5
-	Q =  np.array([[0.],[2.]]).astype(np.float32)
-	Qhat =  np.array([[0.],[1.]]).astype(np.float32)
-	#mse(Q,Qhat) = 0.5 
-	reg=tf.constant(0.1,dtype=tf.float32)
-	guessx,guessu = mixmatchloss_1d(Y,Yhat,Q,Qhat)
-	guess = guessx+reg*guessu
+# #test mixmatchloss_1d (MSE loss is functional)
+# def test_mixmatchloss_1d():
+# 	Y=  np.array([[1.],[2.]]).astype(np.float32)
+# 	Yhat=  np.array([[1.],[1.]]).astype(np.float32)
+# 	#mse(Y,Yhat)  = 0.5
+# 	Q =  np.array([[0.],[2.]]).astype(np.float32)
+# 	Qhat =  np.array([[0.],[1.]]).astype(np.float32)
+# 	#mse(Q,Qhat) = 0.5 
+# 	reg=tf.constant(0.1,dtype=tf.float32)
+# 	guessx,guessu = mixmatchloss_1d(Y,Yhat,Q,Qhat)
+# 	guess = guessx+reg*guessu
 
-	answer = tf.constant(0.5)+0.1*tf.constant(0.5)
-	assert guess==answer
+# 	answer = tf.constant(0.5)+0.1*tf.constant(0.5)
+# 	assert guess==answer
 
 #mix match loss (x,x) (q,q) = 0
 def test_mixmatchloss_ot_d1():

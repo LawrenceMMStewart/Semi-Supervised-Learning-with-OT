@@ -83,13 +83,16 @@ def mixmatch_ot1d(model,X,Y,U,
 	Qprime : array (n,K)
 
 	"""
+	#size of the x batch 
+	l = X.shape[0]
 	
 	#generate noisy augmentations of X
 	Xhat = X + generate_noise(X,stddev=stddev)
 
 	#generate K noisy augmentations of U 
 	Uaugs = noisy_augment(U,stddev=stddev,K=naug)
-	Uhat = Uaugs[-1]
+	# Uhat = Uaugs[-1] #OLD VERSION
+	Uhat = np.concatenate(Uaugs,axis=0)
 
 	#predict labels and convert to numpy arrays
 	modeln = lambda x : model(x).numpy()
@@ -99,6 +102,8 @@ def mixmatch_ot1d(model,X,Y,U,
 	Q = np.concatenate(preds,axis=1)
 	#sort labels into increasing order for barycentre calcs
 	Q.sort(axis=1)
+	#repeat the labels for each augmentation
+	Q = np.tile(Q,[naug,1])
 
 	#mix of data X and U
 	W = np.concatenate((Xhat,Uhat),axis=0)
@@ -109,8 +114,6 @@ def mixmatch_ot1d(model,X,Y,U,
 
 	#shuffle W and its labels together
 	W,Wlabels = shuffle(W,Wlabels)
-
-	l = len(W)//2
 
 	#mixup Xhat and W
 	Xprime,Yprime = mixup_ot1d(Xhat,W[:l],
@@ -123,34 +126,34 @@ def mixmatch_ot1d(model,X,Y,U,
 	return Xprime,Yprime,Uprime,Qprime
 
 
-@tf.function
-def mixmatchloss_1d(Y,Yhat,Q,Qhat):
-	"""
-	Mixmatch loss function for K=1 labels
+# @tf.function
+# def mixmatchloss_1d(Y,Yhat,Q,Qhat):
+# 	"""
+# 	Mixmatch loss function for K=1 labels
 
-	MSE(Y,Yhat) + reg* MSE(Q,Qhat)
+# 	MSE(Y,Yhat) + reg* MSE(Q,Qhat)
 
-	Parameters
-	----------
-	Y : array (n,) of varied size arrays float32
-	Yhat : array (n,) of arrays of size (1,1) float32
-	Q : array (n,) of varied size arrays float32
-	Qhat : array (n,) of arrays of size (1,1) float32
-	Output
-	---------
+# 	Parameters
+# 	----------
+# 	Y : array (n,) of varied size arrays float32
+# 	Yhat : array (n,) of arrays of size (1,1) float32
+# 	Q : array (n,) of varied size arrays float32
+# 	Qhat : array (n,) of arrays of size (1,1) float32
+# 	Output
+# 	---------
 
-	lossx,
+# 	lossx,
 
-	"""
-	mse = tf.keras.losses.MSE
+# 	"""
+# 	mse = tf.keras.losses.MSE
 
-	lossesx = mse(Y,Yhat)
-	lossesu = mse(Q,Qhat)
+# 	lossesx = mse(Y,Yhat)
+# 	lossesu = mse(Q,Qhat)
 
-	lossx = tf.reduce_mean(lossesx)
-	lossu = tf.reduce_mean(lossesu)
+# 	lossx = tf.reduce_mean(lossesx)
+# 	lossu = tf.reduce_mean(lossesu)
 
-	return lossx,lossu
+# 	return lossx,lossu
 
 
 
