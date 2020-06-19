@@ -26,27 +26,30 @@ tf.random.set_seed(123)
 def get_args():
     parser = argparse.ArgumentParser(description = "Training Arguements-")
     parser.add_argument("--dataset", default="wine",
-        help="Options = wine,skillcraft")
+        help="Options = wine,skillcraft : default wine")
     parser.add_argument("--device", default="CPU:0",
-        help="options = [GPU:x,CPU:0]")
+        help="options = [GPU:x,CPU:0] default CPU:0")
     parser.add_argument("--n_labels", default = 250,
-        help = "Number of labels to train on",
+        help = "Number of labels to train on, default 250",
         type = int)
     parser.add_argument("--batch_size", default = 128,
-        help = "batch size",
+        help = "batch size : default 128",
         type = int )
     parser.add_argument("--max_reg", default = 10,
-        help = "maximum value regularisation parameter for loss term Lu",
+        help = "maximum value regularisation parameter for loss term Lu: default 10",
         type=float)
     parser.add_argument("--K", default = 2,
         help = "Number of points for uniform approximation of Barycentre",
         type = int)
     parser.add_argument("--noise_amp", default = 0.05,
-        help = "noise amplitude / stddev for mixmatch augmentations",
+        help = "noise amplitude / stddev for mixmatch augmentations: default 0.05",
         type=float)
     parser.add_argument("--naug", default = 2,
-        help = "number of augmentations for mixmatch",
+        help = "number of augmentations for mixmatch: default = 2",
         type = int)
+    parser.add_argument("--ema_decay",default=0.98,
+        help="exponential moving average decay : default 0.99 = 100 epochs",
+        type=float)
     parser.add_argument('--tensorboard', 
         action='store_true', help='write to tensorboard')
     return parser.parse_args()
@@ -69,10 +72,11 @@ def main():
         noise_amp =  args['noise_amp']
         K = args["K"]
         naug = args['naug']
+        ema_decay = args['ema_decay']
 
 
-        run_tag = create_name([n_labels, batch_size, max_reg,noise_amp,K,naug],
-            ["n",'b','r','amp','K','aug'])
+        run_tag = create_name([n_labels, batch_size, max_reg,noise_amp,K,naug,ema_decay],
+            ["n",'b','r','amp','K','aug','EAV'])
 
 
         # save losses to tensorboard
@@ -144,6 +148,16 @@ def main():
             tf.keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2(l2reg))
             ])
 
+        ema_model  = tf.keras.Sequential([
+            tf.keras.layers.Dense(2*d, activation ='relu',input_shape = (d,),
+                kernel_regularizer=tf.keras.regularizers.l2(l2reg)),
+            tf.keras.layers.Dense(d,activation = 'relu',
+                kernel_regularizer=tf.keras.regularizers.l2(l2reg)),
+            tf.keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.l2(l2reg))
+            ])
+
+        ema_model.set_weights(model.get_weights())
+
 
         model.summary()
 
@@ -164,7 +178,7 @@ def main():
 
         #function to evaluate performance on validation set (MSE)
         def evaluate(val_metric = tf.keras.losses.MSE):
-            pred = model(test)
+            pred = ema_model(test)
             losses = val_metric(pred,test_y)
             mse = tf.reduce_mean(losses)
             rmse = tf.math.sqrt(mse)
@@ -173,12 +187,10 @@ def main():
         #training
         opt = tf.keras.optimizers.Adam()
         epochs = 25000
-
         
         #ramp up regularisation parameter throughout time 
-        #maxing out at 16000 iterations (as in mixmatch paper)
+        #maxing out at 20000 iterations (as in mixmatch paper)
         reach_max = 16000
-
 
 
         regsramp = np.linspace(0,max_reg,num=reach_max)
@@ -192,18 +204,20 @@ def main():
                 Ybatch = batch[1].numpy()
                 Ubatch = next(it).numpy()
                 #to prevent uneven sized batches in final batch
-                Ubatch = Ubatch[:len(Xbatch)] 
+                # Ubatch = Ubatch[:len(Xbatch)] 
 
                 #perform mixmatch
                 Xprime,Yprime,Uprime,Qprime = mixmatch_ot1d(model,Xbatch,
                     Ybatch,Ubatch,
                     stddev=noise_amp,alpha=0.75,K=K,naug=naug)
 
-                # mixmatch lables with dim (batch_size,K,1)
-                Yprime = tf.expand_dims(Yprime,2)
-                Qprime = tf.expand_dims(Qprime,2)
+
+                #a.p. Yprime/Qprime is a list of size batchsize with elems of (K,)
+                Yprime = tf.cast(tf.expand_dims(Yprime,2),dtype=tf.float32)
+                Qprime = tf.cast(tf.expand_dims(Qprime,2),dtype=tf.float32)
 
                 reg = tf.constant(regs[e],dtype = tf.float32)
+
 
                 #on first epoch lossx approx 5 lossu approx 0.5
                 with tf.GradientTape() as tape:
@@ -212,35 +226,43 @@ def main():
                     predx = tf.expand_dims(model(Xprime),2)
                     predu = tf.expand_dims(model(Uprime),2)
 
-                    lossx,lossu = mixmatchloss_1d(Yprime,predx,
+                    lossx,lossu = mixmatchloss_ot(Yprime,predx,
                         Qprime,predu)
                     loss = lossx+reg*lossu
 
                 #calculate gradients and update
                 gradients = tape.gradient(loss ,model.trainable_weights)
                 opt.apply_gradients(zip(gradients,model.trainable_weights))
+                #apply exponential moving averages
+                ema(model, ema_model,ema_decay=ema_decay)
 
-            if args['tensorboard']:
-                #write losses and regularises to tensorboard
-                with trainloss_w.as_default():
-                    tf.summary.scalar('Loss', loss, step=e)
-                with mse_w.as_default():
-                    tf.summary.scalar('Lx',lossx, step=e)
-                with consistancy_w.as_default():
-                    tf.summary.scalar('Lu',lossu, step=e)
+            if e%10==0:
                 val_mse,val_rmse = evaluate()
-                with validation_mse_w.as_default():
-                    tf.summary.scalar('MSE Validation',val_mse, step=e)
-                with validation_rmse_w.as_default():
-                    tf.summary.scalar('rMSE Validation',val_rmse, step=e)
-                with regulariser_w.as_default():
-                    tf.summary.scalar("Regulariser",reg,step=e)
+                tqdm.write(f'Epoch = {e}, Loss = {loss:.4f}, Lossx = {lossx:.4f}, Lossu  = {lossu:.4f}, RMSE = {val_rmse:.4f}')
+                if args['tensorboard']:
+                    #write losses and regularises to tensorboard
+                    with trainloss_w.as_default():
+                        tf.summary.scalar('Loss', loss, step=e)
+                    with mse_w.as_default():
+                        tf.summary.scalar('Lx',lossx, step=e)
+                    with consistancy_w.as_default():
+                        tf.summary.scalar('Lu',lossu, step=e)
+                    
+                    with validation_mse_w.as_default():
+                        tf.summary.scalar('MSE Validation',val_mse, step=e)
+                    with validation_rmse_w.as_default():
+                        tf.summary.scalar('rMSE Validation',val_rmse, step=e)
+                    with regulariser_w.as_default():
+                        tf.summary.scalar("Regulariser",reg,step=e)
                 
         if args['tensorboard']:
             #save model
             save_path = os.path.join("src","models",dname,
                 "mixmatch",run_tag)
+            ema_save_path = os.path.join("src","models",dname,
+                "mixmatch","ema-"+run_tag)
             model.save(save_path)
+            ema_model.save(ema_save_path)
 
 
 
